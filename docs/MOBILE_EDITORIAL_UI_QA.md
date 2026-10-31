@@ -23,3 +23,12 @@ This change updates presentation and interaction, not the underlying library, ca
 - Elastic scroll is applied at the app level to Android and iOS only, with native desktop behaviour and reduced-motion clamping.
 - Coloured genre tiles use gradients rather than per-card BackdropFilters to limit raster/cache pressure; existing Lokal glass remains on the action chrome.
 - CI/static verification and actual device rendering should be checked independently; source updates are not device validation.
+
+## PixelPlayer-style navigation motion (PR #388 follow-up)
+- Library album cover -> album page: artwork should grow continuously into the framed hero, title/content should arrive from the trailing edge; toolbar Back should reverse the artwork flight and route motion.
+- Album -> artist, Genres -> genre songs, Search -> an album, and nested settings routes: departing page should subtly recede; returning should bring the prior page forward without a white/black flash.
+- Tap device/system Back on an Android 13 device and perform an edge swipe on Android 14+; commit and cancel where the OS supports predictive back. Parent tab and nested route must never both pop on one gesture.
+- At the root of a tab, system Back should retain the existing return-to-Home and double-back-to-exit behavior.
+- Home/Search/Library/You tab switches should animate only the incoming page; verify no inactive tabs are retained and that Search autofocus is unaffected.
+- With reduced motion, Lokal animations disabled or performance mode, verify minimal/zero compositing and no flicker. Verify right-to-left locales move in the correct direction.
+- The Android manifest now opts into OnBackInvokedCallback. PixelPlayer is a Jetpack Compose application, so the Flutter implementation uses the platform-supported predictive transition rather than copying Compose code.
