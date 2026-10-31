@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:flick/core/constants/app_constants.dart';
-
 import 'app_theme.dart';
-import 'lokal_interaction.dart';
+import 'package:flick/core/navigation/lokal_page_motion.dart';
 import 'lokal_tokens.dart';
 
 /// Builds the app's [ThemeData] from Lokal tokens.
@@ -160,17 +158,16 @@ abstract final class LokalTheme {
           side: BorderSide(color: t.border),
         ),
       ),
-      // Keep standard MaterialPageRoute transitions quick, consistent and
-      // subtle across the app; screen-specific sheet motions remain in charge
-      // of Now Playing, dialogs and gestures.
+      // Shared-axis parallax for push/pop and Android system predictive back.
+      // Full-player / queue sheets retain their specialized gesture routes.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: _LokalPageTransitionsBuilder(),
-          TargetPlatform.iOS: _LokalPageTransitionsBuilder(),
-          TargetPlatform.fuchsia: _LokalPageTransitionsBuilder(),
-          TargetPlatform.linux: _LokalPageTransitionsBuilder(),
-          TargetPlatform.macOS: _LokalPageTransitionsBuilder(),
-          TargetPlatform.windows: _LokalPageTransitionsBuilder(),
+          TargetPlatform.android: LokalPageMotion(androidPredictiveBack: true),
+          TargetPlatform.iOS: LokalPageMotion(),
+          TargetPlatform.fuchsia: LokalPageMotion(),
+          TargetPlatform.linux: LokalPageMotion(),
+          TargetPlatform.macOS: LokalPageMotion(),
+          TargetPlatform.windows: LokalPageMotion(),
         },
       ),
       extensions: [t],
@@ -201,40 +198,6 @@ abstract final class LokalTheme {
       labelLarge: restyle(base.labelLarge),
       labelMedium: restyle(base.labelMedium, color: t.muted),
       labelSmall: restyle(base.labelSmall, color: t.muted),
-    );
-  }
-}
-
-class _LokalPageTransitionsBuilder extends PageTransitionsBuilder {
-  const _LokalPageTransitionsBuilder();
-
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    if (MediaQuery.disableAnimationsOf(context) ||
-        AppConstants.animationNormal == Duration.zero) return child;
-    final progress = CurvedAnimation(
-      parent: animation,
-      curve: const Cubic(.18, .82, .22, 1),
-      reverseCurve: Curves.easeInOutCubic,
-    );
-    return FadeTransition(
-      opacity: progress,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(.065, .015),
-          end: Offset.zero,
-        ).animate(progress),
-        child: ScaleTransition(
-          scale: Tween<double>(begin: LokalMotion.enterScale, end: 1).animate(progress),
-          child: child,
-        ),
-      ),
     );
   }
 }
