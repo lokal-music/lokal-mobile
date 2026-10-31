@@ -7,6 +7,8 @@ import 'dart:async';
 
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/navigation/root_navigator.dart';
+import 'package:flick/core/navigation/lokal_page_motion.dart';
+import 'package:flick/core/theme/lokal_performance_scope.dart';
 import 'package:flick/core/theme/adaptive_color_provider.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/core/utils/app_haptics.dart';
@@ -163,7 +165,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
     // that theme and left explicit Back and gesture Back looking different.
     unawaited(
       navigator.push<void>(
-        MaterialPageRoute<void>(
+        LokalPageRoute<void>(
           settings: RouteSettings(name: '/konnekted/${destination.name}'),
           builder: (_) => _destination(destination),
         ),
@@ -369,7 +371,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                     valueListenable: _tab,
                                     builder: (_, tab, _) => TweenAnimationBuilder<double>(
                                       key: ValueKey(tab),
-                                      tween: Tween(begin: 0, end: 1),
+                                      tween: Tween<double>(begin: 0, end: 1),
                                       duration: MediaQuery.disableAnimationsOf(context) ||
                                               AppConstants.animationNormal == Duration.zero ||
                                               LokalPerformanceScope.of(context)
