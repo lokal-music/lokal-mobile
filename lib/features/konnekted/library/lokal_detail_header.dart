@@ -20,12 +20,14 @@ class LokalDetailHeader extends StatelessWidget {
     required this.onMore,
     this.artistCredit,
     this.metadata,
+    this.artworkHeroTag,
   });
 
   final String title;
   final Widget artwork;
   final Widget? artistCredit;
   final String? metadata;
+  final String? artworkHeroTag;
   final bool isArtist;
   final Color background;
   final VoidCallback onBack, onShare, onMore;
@@ -99,7 +101,12 @@ class LokalDetailHeader extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(23),
-                    child: RepaintBoundary(child: artwork),
+                    child: artworkHeroTag == null
+                        ? RepaintBoundary(child: artwork)
+                        : Hero(
+                            tag: artworkHeroTag!,
+                            child: RepaintBoundary(child: artwork),
+                          ),
                   ),
                 ),
               ),
