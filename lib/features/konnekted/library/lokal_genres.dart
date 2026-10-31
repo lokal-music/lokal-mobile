@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flick/l10n/l10n.dart';
 import 'package:flick/core/theme/lokal_genre_palette.dart';
 import 'package:flick/core/theme/lokal_interaction.dart';
@@ -356,7 +358,12 @@ class LokalGenreGrid extends StatelessWidget {
           final width = constraints.crossAxisExtent;
           final columns = width >= 850 ? 4 : (width >= 560 ? 3 : 2);
           final cell = (width - (columns - 1) * 14) / columns;
-          final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.5);
+          final scaler = MediaQuery.textScalerOf(context);
+          // Scale the actual font sizes: system text scaling may be nonlinear.
+          final scale = math.max(1.0, math.max(
+            scaler.scale(22) / 22,
+            scaler.scale(11) / 11,
+          ));
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,

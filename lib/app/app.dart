@@ -179,7 +179,9 @@ class _RootRouter extends ConsumerWidget {
     // When the OS requests reduced motion (e.g. Accessibility "remove
     // animations"), that flag wins over the in-app preference so the app
     // settles into a static state like native Android apps do.
-    final systemReducedMotion = MediaQuery.of(context).disableAnimations;
+    final systemReducedMotion = MediaQuery.disableAnimationsOf(context) ||
+        WidgetsBinding.instance.platformDispatcher.accessibilityFeatures
+            .disableAnimations;
     final animationsEnabled =
         appPreferences.animationsEnabled && !systemReducedMotion;
     AppConstants.setAnimationsEnabled(animationsEnabled);

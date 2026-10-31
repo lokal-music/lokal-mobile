@@ -84,6 +84,13 @@ class _Entry {
   final Song? owned;
 }
 
+/// A partial online album has no reliable total duration.
+@visibleForTesting
+String? lokalAlbumRunningTime(List<Song?> rowSongs) {
+  if (rowSongs.isEmpty || rowSongs.any((song) => song == null)) return null;
+  return lokalRunningTime(rowSongs.cast<Song>());
+}
+
 class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   final _client = http.Client();
   final _cancel = Completer<void>();
@@ -399,6 +406,11 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         ref.watch(konnektedLibraryProvider).value ?? widget.localSongs;
     final local = _local(library);
     final rows = _entries(library, local);
+    final year = local.where((song) => song.year != null).firstOrNull?.year ??
+        widget.release?.year;
+    final runningTime = lokalAlbumRunningTime(
+      rows.map((row) => row.owned).toList(),
+    );
     final groups =
         lokalAlbums(widget.isArtist ? local : library)
             .where(
@@ -542,10 +554,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               metadata: widget.isArtist
                   ? (local.isEmpty ? null : lokalSongCount(local.length))
                   : [
-                      if (local.firstOrNull?.year != null)
-                        '${local.first.year}',
+                      if (year != null) '$year',
                       lokalSongCount(rows.length),
-                      if (local.isNotEmpty) lokalRunningTime(local),
+                      if (runningTime != null) runningTime,
                     ].join('  ·  '),
               onBack: () => Navigator.of(context).maybePop(),
               onShare: _share,

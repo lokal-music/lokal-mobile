@@ -43,7 +43,11 @@ import 'library/lokal_library_pages.dart';
 /// The post-onboarding entry point. Keep Flick's existing root navigator and
 /// bootstrap; this shell owns the nested navigator and native shell lifecycle.
 class KonnektedShell extends ConsumerStatefulWidget {
-  const KonnektedShell({super.key});
+  const KonnektedShell({super.key, this.runtimeBuilder});
+
+  /// Allows navigation tests to mount the shell without native services.
+  @visibleForTesting
+  final Widget Function(Widget child)? runtimeBuilder;
 
   @override
   ConsumerState<KonnektedShell> createState() => _KonnektedShellState();
@@ -268,11 +272,13 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
   // Only the child navigator dismisses child routes. This prevents a
   // committed system-back gesture from also switching the root tab.
   void _popNestedRoute() {
+    final navigator = nestedNavigatorKey.currentState;
+    if (navigator == null || !navigator.canPop()) return;
     _nestedSystemBackHandled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _nestedSystemBackHandled = false;
     });
-    nestedNavigatorKey.currentState?.pop();
+    navigator.pop();
   }
 
   void _back(bool didPop, Object? result) {
@@ -297,6 +303,13 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
       }
     }
   }
+
+  Widget _runtime(Widget child) => widget.runtimeBuilder?.call(child) ??
+      KonnektedRuntime(
+        onOpenPlayer: _openPlayer,
+        onOpenQueue: () => _navigate(KonnektedDestination.queue),
+        child: child,
+      );
 
   @override
   void dispose() {
@@ -325,10 +338,8 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
         onPopInvokedWithResult: _back,
         child: Scaffold(
           backgroundColor: context.lokal.bg,
-          body: KonnektedRuntime(
-            onOpenPlayer: _openPlayer,
-            onOpenQueue: () => _navigate(KonnektedDestination.queue),
-            child: DecoratedBox(
+          body: _runtime(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topRight,

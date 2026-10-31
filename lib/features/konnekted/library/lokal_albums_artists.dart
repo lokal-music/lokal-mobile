@@ -461,7 +461,6 @@ class _ArtistRow extends ConsumerWidget {
             song: artist.songs.first, size: 68, radius: 34);
     return LokalPressable(
       radius: 18,
-      semanticLabel: artist.name,
       onTap: () => pushLokal(
         context,
         LokalArtistPage(name: artist.name, songs: artist.songs,

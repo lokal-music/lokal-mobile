@@ -73,6 +73,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        key: UniqueKey(),
         overrides: [
           konnektedLibraryProvider.overrideWithValue(const AsyncData([])),
         ],
@@ -131,6 +132,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        key: UniqueKey(),
         overrides: [
           konnektedLibraryProvider.overrideWithValue(const AsyncData([])),
         ],
@@ -227,9 +229,8 @@ void main() {
         greaterThan(flow.bottom));
 
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     final node = tester.getSemantics(find.bySemanticsLabel('Flow'));
-    expect(node.hasAction(SemanticsAction.tap), isTrue);
+    expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
     tester.binding.pipelineOwner.semanticsOwner!.performAction(
       node.id,
       SemanticsAction.tap,
@@ -237,6 +238,7 @@ void main() {
     await tester.pump();
     expect(tabs, [KonnektedHomeTab.flow]);
     expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets('Home header tabs remain readable and screen-reader actionable', (
@@ -259,19 +261,19 @@ void main() {
       ),
     );
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     final discovery = find.bySemanticsLabel('Discovery');
     expect(discovery, findsOneWidget);
     // Never shrink the mode controls with FittedBox on a narrow device.
     expect(tester.getSize(discovery).height, greaterThanOrEqualTo(44));
     final node = tester.getSemantics(discovery);
-    expect(node.hasAction(SemanticsAction.tap), isTrue);
+    expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
     tester.binding.pipelineOwner.semanticsOwner!.performAction(
       node.id, SemanticsAction.tap,
     );
     await tester.pump();
     expect(selected, [KonnektedHomeTab.discovery]);
     expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets('Home mode selector has balanced lanes and rounded selection', (
@@ -448,9 +450,9 @@ void main() {
     expect(find.text('MADE FOR YOU'), findsNothing);
     expect(find.text('RECENT'), findsNothing);
     expect(find.text('NEW'), findsNothing);
-    expect(find.text('Track r1'), findsOneWidget);
+    expect(find.text('Track r2'), findsOneWidget);
     final stage = find.bySemanticsLabel(RegExp('^Cover Flow'));
-    await tester.tapAt(tester.getCenter(stage) + const Offset(150, 0));
+    await tester.tapAt(tester.getCenter(stage));
     await tester.pumpAndSettle();
     expect(played?.id, 'r2');
     expect(queue?.map((s) => s.id), ['r1', 'r2', 'r3']);

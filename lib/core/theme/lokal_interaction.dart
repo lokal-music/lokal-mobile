@@ -86,6 +86,8 @@ class LokalScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
     if (MediaQuery.disableAnimationsOf(context) ||
+        WidgetsBinding.instance.platformDispatcher.accessibilityFeatures
+            .disableAnimations ||
         AppConstants.animationNormal == Duration.zero) {
       return const ClampingScrollPhysics();
     }

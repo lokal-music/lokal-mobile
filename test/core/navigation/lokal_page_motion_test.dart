@@ -71,6 +71,7 @@ void main() {
       home: MediaQuery(
         data: const MediaQueryData(disableAnimations: true),
         child: Builder(
+          key: const Key('motion-wrapper'),
           builder: (context) => const LokalPageMotion().buildTransitions<void>(
             MaterialPageRoute<void>(builder: (_) => const SizedBox()),
             context,
@@ -82,6 +83,9 @@ void main() {
       ),
     ));
     expect(find.text('Static detail'), findsOneWidget);
-    expect(find.byType(SlideTransition), findsNothing);
+    expect(find.descendant(
+      of: find.byKey(const Key('motion-wrapper')),
+      matching: find.byType(SlideTransition),
+    ), findsNothing);
   });
 }
