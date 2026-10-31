@@ -579,6 +579,7 @@ class LokalCoverCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.round = false,
+    this.heroTag,
   });
 
   final Widget art;
@@ -586,6 +587,7 @@ class LokalCoverCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool round;
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context) => LokalPressable(
@@ -600,7 +602,9 @@ class LokalCoverCard extends StatelessWidget {
             aspectRatio: 1,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(round ? 999 : 14),
-              child: art,
+              child: heroTag == null
+                  ? art
+                  : Hero(tag: heroTag!, child: art),
             ),
           ),
           const SizedBox(height: 9),
