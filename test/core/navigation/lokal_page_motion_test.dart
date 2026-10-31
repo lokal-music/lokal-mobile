@@ -54,6 +54,13 @@ void main() {
         reason: 'Back must return the foreground along the reverse path');
   });
 
+  test('library routes retain Material predictive-back compatibility', () {
+    final route = LokalPageRoute<void>(builder: (_) => const SizedBox());
+    expect(route, isA<MaterialPageRoute<void>>());
+    expect(route.transitionDuration, const Duration(milliseconds: 360));
+    expect(route.reverseTransitionDuration, const Duration(milliseconds: 320));
+  });
+
   testWidgets('respects system reduced motion', (tester) async {
     final primary = AnimationController(vsync: tester, value: .4);
     final secondary = AnimationController(vsync: tester, value: .6);
