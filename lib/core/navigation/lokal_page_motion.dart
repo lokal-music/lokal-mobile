@@ -91,3 +91,20 @@ class LokalPageMotion extends PageTransitionsBuilder {
     );
   }
 }
+
+/// Consistent timing for the shell's library/detail routes. This remains a
+/// MaterialPageRoute so Flutter's native Android predictive back and Hero
+/// machinery can participate (unlike a custom PageRouteBuilder transition).
+class LokalPageRoute<T> extends MaterialPageRoute<T> {
+  LokalPageRoute({
+    required super.builder,
+    super.settings,
+    super.fullscreenDialog,
+  });
+
+  @override
+  Duration get transitionDuration => LokalPageMotion.duration;
+
+  @override
+  Duration get reverseTransitionDuration => LokalPageMotion.reverseDuration;
+}
