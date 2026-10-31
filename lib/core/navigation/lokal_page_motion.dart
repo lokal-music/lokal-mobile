@@ -103,8 +103,13 @@ class LokalPageRoute<T> extends MaterialPageRoute<T> {
   });
 
   @override
-  Duration get transitionDuration => LokalPageMotion.duration;
+  Duration get transitionDuration => AppConstants.animationNormal == Duration.zero
+      ? Duration.zero
+      : LokalPageMotion.duration;
 
   @override
-  Duration get reverseTransitionDuration => LokalPageMotion.reverseDuration;
+  Duration get reverseTransitionDuration =>
+      AppConstants.animationNormal == Duration.zero
+          ? Duration.zero
+          : LokalPageMotion.reverseDuration;
 }
