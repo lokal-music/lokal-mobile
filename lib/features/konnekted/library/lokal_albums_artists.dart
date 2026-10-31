@@ -223,6 +223,7 @@ class LokalAlbumsPage extends ConsumerWidget {
               art: _AlbumArt(album.songs),
               title: album.albumName,
               subtitle: album.albumArtist,
+              heroTag: 'lokal:album:${album.key}',
               onTap: () => pushLokal(context, LokalAlbumPage(album: album)),
             );
           },
@@ -554,6 +555,7 @@ class LokalAlbumPage extends StatelessWidget {
     artist: album.albumArtist,
     localSongs: album.songs,
     initialOnline: initialOnline,
+    artworkHeroTag: 'lokal:album:${album.key}',
   );
 }
 
