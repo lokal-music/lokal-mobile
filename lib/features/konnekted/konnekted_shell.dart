@@ -157,37 +157,14 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
       );
       return;
     }
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : AppConstants.animationNormal;
-    final lightweightTransition =
-        ref.read(lokalAppearanceProvider).performanceMode &&
-        LokalPerformanceAdvisor.samsungRasterMitigations;
+    // Material routes now use LokalPageMotion, including native Android
+    // predictive back. A custom PageRouteBuilder here previously bypassed
+    // that theme and left explicit Back and gesture Back looking different.
     unawaited(
       navigator.push<void>(
-        PageRouteBuilder<void>(
+        MaterialPageRoute<void>(
           settings: RouteSettings(name: '/konnekted/${destination.name}'),
-          transitionDuration: duration,
-          reverseTransitionDuration: duration,
-          pageBuilder: (context, _, _) => _destination(destination),
-          // Opacity compositing of two full scrollable pages in the same
-          // transition raises raster pressure on the M05. Use a short
-          // composited translation instead in Performance Mode. Full mode
-          // retains the original fade.
-          transitionsBuilder: (_, animation, _, child) =>
-              lightweightTransition && duration != Duration.zero
-                  ? SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(.035, 0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
-                      )),
-                      child: RepaintBoundary(child: child),
-                    )
-                  : FadeTransition(opacity: animation, child: child),
+          builder: (_) => _destination(destination),
         ),
       ),
     );
