@@ -162,7 +162,7 @@ abstract final class LokalTheme {
       // Full-player / queue sheets retain their specialized gesture routes.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: LokalPageMotion(androidPredictiveBack: true),
+          TargetPlatform.android: LokalPageMotion(),
           TargetPlatform.iOS: LokalPageMotion(),
           TargetPlatform.fuchsia: LokalPageMotion(),
           TargetPlatform.linux: LokalPageMotion(),

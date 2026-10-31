@@ -1,3 +1,4 @@
+import 'package:flick/core/navigation/lokal_page_motion.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -2381,29 +2382,5 @@ BoxDecoration _folderSheetDecoration(BuildContext context) => BoxDecoration(
   border: Border.all(color: context.lokal.border),
 );
 
-Route<void> _folderRoute(BuildContext context, Widget page) {
-  final duration = MediaQuery.disableAnimationsOf(context)
-      ? Duration.zero
-      : AppConstants.animationNormal;
-  return PageRouteBuilder<void>(
-    transitionDuration: duration,
-    reverseTransitionDuration: duration,
-    pageBuilder: (_, _, _) => page,
-    transitionsBuilder: (_, animation, _, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeInOutCubic,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(.04, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
-}
+Route<void> _folderRoute(BuildContext context, Widget page) =>
+    LokalPageRoute<void>(builder: (_) => page);

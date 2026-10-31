@@ -3,25 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/lokal_performance_scope.dart';
 
-/// PixelPlayer-inspired shared-axis motion for normal push / pop operations.
+/// A single, opacity-free shared-axis motion for all ordinary Lokal routes.
 ///
-/// Both route animations matter: [animation] animates the new/removed page,
-/// and [secondaryAnimation] sends the page beneath it into the background.
-/// Keeping this implementation on the theme covers ordinary MaterialPageRoute
-/// pushes, including their toolbar Back actions.
+/// The old implementation nested Flutter's Android predictive-back builder
+/// (which uses FadeForwards outside a gesture) *inside* our own fade, scale
+/// and slide. At the start of a push the new page was transparent while the
+/// old page had already shifted, exposing the navigator's dark background.
+/// It also asked the GPU to composite multiple translucent full-screen layers.
 ///
-/// Android uses Flutter's native predictive-back renderer as the inner layer:
-/// the interactive edge-swipe progress and cancellation are owned by Flutter,
-/// rather than competing with Android's gesture recognizer.
+/// Here the incoming route is opaque from its very first frame. The previous
+/// route is kept mounted by Navigator and moves only a small distance in the
+/// opposite direction. There is always overlap, so neither forward nor
+/// reverse travel can reveal an unpainted strip of the underlying navigator.
+/// Hero flights and specialized player/queue sheet routes remain separate.
 class LokalPageMotion extends PageTransitionsBuilder {
-  const LokalPageMotion({this.androidPredictiveBack = false});
+  const LokalPageMotion();
 
-  final bool androidPredictiveBack;
-
-  static const Duration duration = Duration(milliseconds: 360);
-  static const Duration reverseDuration = Duration(milliseconds: 320);
-  static const Curve emphasized = Cubic(.2, 0, 0, 1);
-  static const Curve popEase = Cubic(.3, 0, .8, .15);
+  /// A fast, predictable motion profile; no long fade-in or black scrim.
+  static const duration = Duration(milliseconds: 320);
+  static const reverseDuration = Duration(milliseconds: 285);
+  static const enterOffset = .34;
+  static const behindOffset = -.10;
+  static const enterCurve = Cubic(.2, 0, 0, 1);
+  static const backCurve = Cubic(.23, .65, .3, 1);
 
   @override
   Widget buildTransitions<T>(
@@ -36,65 +40,52 @@ class LokalPageMotion extends PageTransitionsBuilder {
       return child;
     }
 
-    // Avoid animated full-page opacity layers on low-memory/performance mode.
-    final performance = LokalPerformanceScope.of(context);
-    final direction = Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0;
-    final primary = CurvedAnimation(
+    // The translation is directional. Do not introduce a second opacity
+    // compositing pass or a scale that would expose the underlying backdrop.
+    final direction = Directionality.of(context) == TextDirection.rtl
+        ? -1.0
+        : 1.0;
+
+    final foregroundProgress = CurvedAnimation(
       parent: animation,
-      curve: emphasized,
-      reverseCurve: popEase,
+      curve: enterCurve,
+      reverseCurve: backCurve,
     );
-    final secondary = CurvedAnimation(
+    final backgroundProgress = CurvedAnimation(
       parent: secondaryAnimation,
-      curve: emphasized,
-      reverseCurve: emphasized,
+      curve: enterCurve,
+      reverseCurve: backCurve,
     );
 
-    // Android's predictive-back transition listens to gesture progress and
-    // handles cancel / commit. Surround it with lightweight transforms, not
-    // another gesture recognizer or a manual Navigator.pop on drag completion.
-    final native = androidPredictiveBack
-        ? const PredictiveBackPageTransitionsBuilder().buildTransitions(
-            route, context, animation, secondaryAnimation, child)
-        : child;
-
-    // New page arrives from the leading edge; on Back it returns there.
-    final foreground = SlideTransition(
+    final incoming = SlideTransition(
       position: Tween<Offset>(
-        begin: Offset(.22 * direction, 0),
+        begin: Offset(enterOffset * direction, 0),
         end: Offset.zero,
-      ).animate(primary),
-      child: performance || androidPredictiveBack
-          ? native
-          : FadeTransition(
-              opacity: primary,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: .965, end: 1).animate(primary),
-                child: native,
-              ),
-            ),
+      ).animate(foregroundProgress),
+      // Paint the content once, then move the layer. Artwork-heavy artist,
+      // album and Search screens should not reraster on each animation tick.
+      child: RepaintBoundary(child: child),
     );
 
-    // The previous page recedes gently on push; it re-emerges toward the
-    // finger on pop. Animated using the *secondary* animation on that route.
+    // Ultra Performance Mode avoids translating/rasterizing the old page at
+    // all. Its full-size, opaque backdrop remains in place behind the new
+    // route; the incoming slide remains reversible and never exposes black.
+    if (LokalPerformanceScope.of(context)) return incoming;
+
     return SlideTransition(
       position: Tween<Offset>(
         begin: Offset.zero,
-        end: Offset(-.14 * direction, 0),
-      ).animate(secondary),
-      child: performance || androidPredictiveBack
-          ? foreground
-          : ScaleTransition(
-              scale: Tween<double>(begin: 1, end: .965).animate(secondary),
-              child: foreground,
-            ),
+        end: Offset(behindOffset * direction, 0),
+      ).animate(backgroundProgress),
+      child: incoming,
     );
   }
 }
 
-/// Consistent timing for the shell's library/detail routes. This remains a
-/// MaterialPageRoute so Flutter's native Android predictive back and Hero
-/// machinery can participate (unlike a custom PageRouteBuilder transition).
+/// A native Material route keeps Navigator, Hero and Android system Back
+/// semantics, unlike an independently composited PageRouteBuilder.
+/// Android's system Back still commits through the nested NavigatorPopHandler.
+/// Gesture-progress rendering must be evaluated separately on device.
 class LokalPageRoute<T> extends MaterialPageRoute<T> {
   LokalPageRoute({
     required super.builder,
@@ -103,9 +94,10 @@ class LokalPageRoute<T> extends MaterialPageRoute<T> {
   });
 
   @override
-  Duration get transitionDuration => AppConstants.animationNormal == Duration.zero
-      ? Duration.zero
-      : LokalPageMotion.duration;
+  Duration get transitionDuration =>
+      AppConstants.animationNormal == Duration.zero
+          ? Duration.zero
+          : LokalPageMotion.duration;
 
   @override
   Duration get reverseTransitionDuration =>
