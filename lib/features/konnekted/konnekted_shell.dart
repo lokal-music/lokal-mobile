@@ -367,8 +367,25 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                   bucket: _storage,
                                   child: ValueListenableBuilder<KonnektedTab>(
                                     valueListenable: _tab,
-                                    builder: (_, tab, _) => KeyedSubtree(
+                                    builder: (_, tab, _) => TweenAnimationBuilder<double>(
                                       key: ValueKey(tab),
+                                      tween: Tween(begin: 0, end: 1),
+                                      duration: MediaQuery.disableAnimationsOf(context) ||
+                                              AppConstants.animationNormal == Duration.zero ||
+                                              LokalPerformanceScope.of(context)
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 240),
+                                      curve: const Cubic(.2, 0, 0, 1),
+                                      // Only the incoming destination is
+                                      // animated. Unlike AnimatedSwitcher,
+                                      // inactive tab trees aren't retained.
+                                      builder: (_, value, child) =>
+                                          Transform.translate(
+                                        offset: Offset(16 * (1 - value), 0),
+                                        child: child,
+                                      ),
+                                      child: KeyedSubtree(
+                                        key: ValueKey(tab),
                                       // No IndexedStack/PageView: inactive native-heavy
                                       // screens are never eagerly created or retained.
                                       child: switch (tab) {
@@ -388,6 +405,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                           onNavigate: _navigate,
                                         ),
                                       },
+                                    ),
                                     ),
                                   ),
                                 ),
