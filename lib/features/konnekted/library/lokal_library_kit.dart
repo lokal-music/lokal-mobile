@@ -6,6 +6,8 @@ import '../../link/lokal_ghost_availability.dart';
 import 'dart:async';
 
 import 'package:flick/core/theme/lokal_theme.dart';
+import 'package:flick/core/navigation/lokal_page_motion.dart';
+import 'package:flick/core/theme/lokal_interaction.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/konnekted_data.dart';
 import 'package:flick/features/konnekted/konnekted_home.dart';
@@ -121,7 +123,7 @@ Future<void> lokalQueueAll(
 
 /// Pushes a Library page on the navigator the caller lives in.
 Future<void> pushLokal(BuildContext context, Widget page) =>
-    Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => page));
+    Navigator.of(context).push<void>(LokalPageRoute(builder: (_) => page));
 
 /// Total running time, "1 hr 12 min" or "42 min".
 String lokalRunningTime(Iterable<Song> songs) {
@@ -569,7 +571,7 @@ class LokalTrackRow extends ConsumerWidget {
   }
 }
 
-/// A square cover with a title and a second line, for grids and shelves.
+/// A square cover with a tactile press/release and predictable focus.
 class LokalCoverCard extends StatelessWidget {
   const LokalCoverCard({
     super.key,
@@ -578,53 +580,50 @@ class LokalCoverCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.round = false,
+    this.heroTag,
   });
 
   final Widget art;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-
-  /// An artist's round portrait.
   final bool round;
+  final String? heroTag;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: lokalText("{arg0}, {arg1}", args: {'arg0': title, 'arg1': subtitle}),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      excludeFromSemantics: true,
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: round
-              ? CrossAxisAlignment.center
-              : CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(round ? 999 : 10),
-                child: art,
-              ),
+  Widget build(BuildContext context) => LokalPressable(
+    radius: round ? 100 : 14,
+    semanticLabel: lokalText("{arg0}, {arg1}", args: {'arg0': title, 'arg1': subtitle}),
+    onTap: onTap,
+    child: ExcludeSemantics(
+      child: Column(
+        crossAxisAlignment: round ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(round ? 999 : 14),
+              child: heroTag == null
+                  ? art
+                  : Hero(tag: heroTag!, child: art),
             ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: round ? TextAlign.center : TextAlign.start,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: context.lokal.muted),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: round ? TextAlign.center : TextAlign.start,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: round ? TextAlign.center : TextAlign.start,
+            style: TextStyle(fontSize: 12, color: context.lokal.muted),
+          ),
+        ],
       ),
     ),
   );

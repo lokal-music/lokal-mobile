@@ -7,6 +7,8 @@ import 'dart:async';
 
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/navigation/root_navigator.dart';
+import 'package:flick/core/navigation/lokal_page_motion.dart';
+import 'package:flick/core/theme/lokal_performance_scope.dart';
 import 'package:flick/core/theme/adaptive_color_provider.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/core/utils/app_haptics.dart';
@@ -41,7 +43,11 @@ import 'library/lokal_library_pages.dart';
 /// The post-onboarding entry point. Keep Flick's existing root navigator and
 /// bootstrap; this shell owns the nested navigator and native shell lifecycle.
 class KonnektedShell extends ConsumerStatefulWidget {
-  const KonnektedShell({super.key});
+  const KonnektedShell({super.key, this.runtimeBuilder});
+
+  /// Allows navigation tests to mount the shell without native services.
+  @visibleForTesting
+  final Widget Function(Widget child)? runtimeBuilder;
 
   @override
   ConsumerState<KonnektedShell> createState() => _KonnektedShellState();
@@ -56,6 +62,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
   final _dockCollapsed = ValueNotifier(false);
   final _storage = PageStorageBucket();
   DateTime? _lastBack;
+  bool _nestedSystemBackHandled = false;
 
   @override
   void initState() {
@@ -157,37 +164,14 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
       );
       return;
     }
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : AppConstants.animationNormal;
-    final lightweightTransition =
-        ref.read(lokalAppearanceProvider).performanceMode &&
-        LokalPerformanceAdvisor.samsungRasterMitigations;
+    // Material routes now use LokalPageMotion, including native Android
+    // predictive back. A custom PageRouteBuilder here previously bypassed
+    // that theme and left explicit Back and gesture Back looking different.
     unawaited(
       navigator.push<void>(
-        PageRouteBuilder<void>(
+        LokalPageRoute<void>(
           settings: RouteSettings(name: '/konnekted/${destination.name}'),
-          transitionDuration: duration,
-          reverseTransitionDuration: duration,
-          pageBuilder: (context, _, _) => _destination(destination),
-          // Opacity compositing of two full scrollable pages in the same
-          // transition raises raster pressure on the M05. Use a short
-          // composited translation instead in Performance Mode. Full mode
-          // retains the original fade.
-          transitionsBuilder: (_, animation, _, child) =>
-              lightweightTransition && duration != Duration.zero
-                  ? SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(.035, 0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
-                      )),
-                      child: RepaintBoundary(child: child),
-                    )
-                  : FadeTransition(opacity: animation, child: child),
+          builder: (_) => _destination(destination),
         ),
       ),
     );
@@ -285,12 +269,24 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
     }
   }
 
-  void _back(bool didPop, Object? result) {
-    if (didPop) return;
+  // Only the child navigator dismisses child routes. This prevents a
+  // committed system-back gesture from also switching the root tab.
+  void _popNestedRoute() {
     final navigator = nestedNavigatorKey.currentState;
-    if (navigator != null && navigator.canPop()) {
-      unawaited(navigator.maybePop());
-    } else if (_tab.value != KonnektedTab.listen) {
+    if (navigator == null || !navigator.canPop()) return;
+    _nestedSystemBackHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _nestedSystemBackHandled = false;
+    });
+    navigator.pop();
+  }
+
+  void _back(bool didPop, Object? result) {
+    if (didPop || _nestedSystemBackHandled) return;
+    // Child Back is owned by NavigatorPopHandler; this callback is for
+    // switching tabs / double-back exit when the child is already at root.
+    if (nestedNavigatorKey.currentState?.canPop() == true) return;
+    if (_tab.value != KonnektedTab.listen) {
       _select(KonnektedTab.listen);
     } else {
       final now = DateTime.now();
@@ -307,6 +303,13 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
       }
     }
   }
+
+  Widget _runtime(Widget child) => widget.runtimeBuilder?.call(child) ??
+      KonnektedRuntime(
+        onOpenPlayer: _openPlayer,
+        onOpenQueue: () => _navigate(KonnektedDestination.queue),
+        child: child,
+      );
 
   @override
   void dispose() {
@@ -335,10 +338,8 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
         onPopInvokedWithResult: _back,
         child: Scaffold(
           backgroundColor: context.lokal.bg,
-          body: KonnektedRuntime(
-            onOpenPlayer: _openPlayer,
-            onOpenQueue: () => _navigate(KonnektedDestination.queue),
-            child: DecoratedBox(
+          body: _runtime(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topRight,
@@ -369,16 +370,35 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                         child: NotificationListener<ScrollNotification>(
                           onNotification: _onScroll,
                           child: RepaintBoundary(
-                            child: Navigator(
-                              key: nestedNavigatorKey,
+                            child: NavigatorPopHandler<void>(
+                              onPopWithResult: (_) => _popNestedRoute(),
+                              child: Navigator(
+                                key: nestedNavigatorKey,
                               onGenerateRoute: (_) => MaterialPageRoute<void>(
                                 settings: const RouteSettings(name: '/'),
                                 builder: (_) => PageStorage(
                                   bucket: _storage,
                                   child: ValueListenableBuilder<KonnektedTab>(
                                     valueListenable: _tab,
-                                    builder: (_, tab, _) => KeyedSubtree(
+                                    builder: (_, tab, _) => TweenAnimationBuilder<double>(
                                       key: ValueKey(tab),
+                                      tween: Tween<double>(begin: 0, end: 1),
+                                      duration: MediaQuery.disableAnimationsOf(context) ||
+                                              AppConstants.animationNormal == Duration.zero ||
+                                              LokalPerformanceScope.of(context)
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 240),
+                                      curve: const Cubic(.2, 0, 0, 1),
+                                      // Only the incoming destination is
+                                      // animated. Unlike AnimatedSwitcher,
+                                      // inactive tab trees aren't retained.
+                                      builder: (_, value, child) =>
+                                          Transform.translate(
+                                        offset: Offset(16 * (1 - value), 0),
+                                        child: child,
+                                      ),
+                                      child: KeyedSubtree(
+                                        key: ValueKey(tab),
                                       // No IndexedStack/PageView: inactive native-heavy
                                       // screens are never eagerly created or retained.
                                       child: switch (tab) {
@@ -399,9 +419,11 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                         ),
                                       },
                                     ),
+                                    ),
                                   ),
                                 ),
                               ),
+                            ),
                             ),
                           ),
                         ),

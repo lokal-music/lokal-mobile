@@ -49,6 +49,7 @@
         android:icon="@mipmap/ic_lokal_lime"
         android:roundIcon="@mipmap/ic_lokal_lime"
         android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true">
         <!-- Android Auto discovers the existing music MediaBrowserService. -->
         <meta-data

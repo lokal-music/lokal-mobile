@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flick/core/theme/app_colors.dart';
 import 'package:flick/core/theme/lokal_appearance.dart';
 import 'package:flick/core/theme/lokal_theme.dart';
+import 'package:flick/core/theme/lokal_interaction.dart';
 import 'package:flick/core/navigation/root_navigator.dart';
 import 'package:flick/core/utils/app_haptics.dart';
 import 'package:flick/core/constants/app_constants.dart';
@@ -81,6 +82,7 @@ class FlickPlayerApp extends StatelessWidget {
     LokalAppearance appearance,
   ) {
     return MaterialApp(
+      scrollBehavior: const LokalScrollBehavior(),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       theme: LokalTheme.build(appearance.tokens),
@@ -177,7 +179,9 @@ class _RootRouter extends ConsumerWidget {
     // When the OS requests reduced motion (e.g. Accessibility "remove
     // animations"), that flag wins over the in-app preference so the app
     // settles into a static state like native Android apps do.
-    final systemReducedMotion = MediaQuery.of(context).disableAnimations;
+    final systemReducedMotion = MediaQuery.disableAnimationsOf(context) ||
+        WidgetsBinding.instance.platformDispatcher.accessibilityFeatures
+            .disableAnimations;
     final animationsEnabled =
         appPreferences.animationsEnabled && !systemReducedMotion;
     AppConstants.setAnimationsEnabled(animationsEnabled);
