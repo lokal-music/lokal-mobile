@@ -55,7 +55,8 @@ class LokalMusicDetailPage extends ConsumerStatefulWidget {
   }) : title = name,
        artist = name,
        isArtist = true,
-       release = null;
+       release = null,
+       artworkHeroTag = null;
   const LokalMusicDetailPage.album({
     super.key,
     required this.title,
@@ -63,12 +64,14 @@ class LokalMusicDetailPage extends ConsumerStatefulWidget {
     required this.localSongs,
     this.initialOnline = false,
     this.release,
+    this.artworkHeroTag,
   }) : isArtist = false;
 
   final String title, artist;
   final List<Song> localSongs;
   final bool isArtist, initialOnline;
   final LokalCatalogueAlbum? release;
+  final String? artworkHeroTag;
 
   @override
   ConsumerState<LokalMusicDetailPage> createState() =>
@@ -535,6 +538,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               artwork: heroArtwork,
               isArtist: widget.isArtist,
               background: pageColor,
+              artworkHeroTag: widget.artworkHeroTag,
               metadata: widget.isArtist
                   ? (local.isEmpty ? null : lokalSongCount(local.length))
                   : [
