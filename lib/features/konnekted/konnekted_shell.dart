@@ -56,6 +56,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
   final _dockCollapsed = ValueNotifier(false);
   final _storage = PageStorageBucket();
   DateTime? _lastBack;
+  bool _nestedSystemBackHandled = false;
 
   @override
   void initState() {
@@ -262,12 +263,22 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
     }
   }
 
+  // Only the child navigator dismisses child routes. This prevents a
+  // committed system-back gesture from also switching the root tab.
+  void _popNestedRoute(void? result) {
+    _nestedSystemBackHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _nestedSystemBackHandled = false;
+    });
+    nestedNavigatorKey.currentState?.pop(result);
+  }
+
   void _back(bool didPop, Object? result) {
-    if (didPop) return;
-    final navigator = nestedNavigatorKey.currentState;
-    if (navigator != null && navigator.canPop()) {
-      unawaited(navigator.maybePop());
-    } else if (_tab.value != KonnektedTab.listen) {
+    if (didPop || _nestedSystemBackHandled) return;
+    // Child Back is owned by NavigatorPopHandler; this callback is for
+    // switching tabs / double-back exit when the child is already at root.
+    if (nestedNavigatorKey.currentState?.canPop() == true) return;
+    if (_tab.value != KonnektedTab.listen) {
       _select(KonnektedTab.listen);
     } else {
       final now = DateTime.now();
@@ -346,8 +357,10 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                         child: NotificationListener<ScrollNotification>(
                           onNotification: _onScroll,
                           child: RepaintBoundary(
-                            child: Navigator(
-                              key: nestedNavigatorKey,
+                            child: NavigatorPopHandler<void>(
+                              onPopWithResult: _popNestedRoute,
+                              child: Navigator(
+                                key: nestedNavigatorKey,
                               onGenerateRoute: (_) => MaterialPageRoute<void>(
                                 settings: const RouteSettings(name: '/'),
                                 builder: (_) => PageStorage(
@@ -379,6 +392,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                   ),
                                 ),
                               ),
+                            ),
                             ),
                           ),
                         ),
