@@ -267,12 +267,12 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
 
   // Only the child navigator dismisses child routes. This prevents a
   // committed system-back gesture from also switching the root tab.
-  void _popNestedRoute(void? result) {
+  void _popNestedRoute() {
     _nestedSystemBackHandled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _nestedSystemBackHandled = false;
     });
-    nestedNavigatorKey.currentState?.pop(result);
+    nestedNavigatorKey.currentState?.pop();
   }
 
   void _back(bool didPop, Object? result) {
@@ -360,7 +360,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                           onNotification: _onScroll,
                           child: RepaintBoundary(
                             child: NavigatorPopHandler<void>(
-                              onPopWithResult: _popNestedRoute,
+                              onPopWithResult: (_) => _popNestedRoute(),
                               child: Navigator(
                                 key: nestedNavigatorKey,
                               onGenerateRoute: (_) => MaterialPageRoute<void>(
