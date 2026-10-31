@@ -6,6 +6,7 @@ import '../../link/lokal_ghost_availability.dart';
 import 'dart:async';
 
 import 'package:flick/core/theme/lokal_theme.dart';
+import 'package:flick/core/navigation/lokal_page_motion.dart';
 import 'package:flick/core/theme/lokal_interaction.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/konnekted_data.dart';
@@ -122,7 +123,7 @@ Future<void> lokalQueueAll(
 
 /// Pushes a Library page on the navigator the caller lives in.
 Future<void> pushLokal(BuildContext context, Widget page) =>
-    Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => page));
+    Navigator.of(context).push<void>(LokalPageRoute(builder: (_) => page));
 
 /// Total running time, "1 hr 12 min" or "42 min".
 String lokalRunningTime(Iterable<Song> songs) {
