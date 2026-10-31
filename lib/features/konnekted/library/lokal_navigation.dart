@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/navigation/root_navigator.dart';
+import 'package:flick/core/navigation/lokal_page_motion.dart';
 import 'package:flick/core/utils/navigation_helper.dart';
 import 'package:flick/data/repositories/song_repository.dart';
 import 'package:flick/features/konnekted/konnekted_data.dart';
@@ -70,7 +71,7 @@ Future<void> pushLokalPage(BuildContext context, Widget page) async {
   if (!context.mounted) return;
   final nested = nestedNavigatorKey.currentState;
   final here = Navigator.maybeOf(context);
-  final route = MaterialPageRoute<void>(builder: (_) => page);
+  final route = LokalPageRoute<void>(builder: (_) => page);
   if (nested == null || here == null || identical(here, nested)) {
     await (here ?? nested)?.push(route);
     return;
