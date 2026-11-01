@@ -234,6 +234,8 @@ class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen>
 
   int _burst = 0;
   bool _burstVisible = false;
+  Animation<double>? _initialRouteAnimation;
+  bool _initialEntryReady = false;
 
   @override
   void initState() {
@@ -243,7 +245,34 @@ class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen>
     _volume = _volumeControl.value;
     _player.currentSongNotifier.addListener(_onSongChanged);
     _player.favoriteNotificationToggleNotifier.addListener(_refreshFavorite);
-    _refreshFavorite();
+    // Defer nonessential database, network and lyrics work until the
+    // mini-player -> full-player sheet has finished its first animation.
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context)?.animation;
+    if (identical(_initialRouteAnimation, route) && _initialEntryReady) return;
+    _initialRouteAnimation?.removeStatusListener(_onInitialRouteStatus);
+    _initialRouteAnimation = route;
+    route?.addStatusListener(_onInitialRouteStatus);
+    if (route == null || route.status == AnimationStatus.completed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _finishInitialEntry());
+    }
+  }
+
+  void _onInitialRouteStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _finishInitialEntry());
+    }
+  }
+
+  void _finishInitialEntry() {
+    if (!mounted || _initialEntryReady) return;
+    _initialEntryReady = true;
+    _initialRouteAnimation?.removeStatusListener(_onInitialRouteStatus);
+    unawaited(_refreshFavorite());
     _discoverVideo(_player.currentSongNotifier.value);
     unawaited(_loadLyrics());
   }
@@ -264,6 +293,7 @@ class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen>
       unawaited(SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]));
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     }
+    _initialRouteAnimation?.removeStatusListener(_onInitialRouteStatus);
     LokalPerformanceAdvisor.exitPlayerSurface('modern-full-player');
     _volumeControl.dispose();
     _queue.dispose();
@@ -280,7 +310,10 @@ class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen>
     _canvasReadyForSong = null;
     _restoreCanvasControls();
     _draggingSeek = false;
-    _refreshFavorite();
+    // The entry warm-up always uses the latest song; early queue changes
+    // must not initiate duplicate work during the opening sheet animation.
+    if (!_initialEntryReady) return;
+    unawaited(_refreshFavorite());
     _discoverVideo(_player.currentSongNotifier.value);
     unawaited(_loadLyrics());
   }
