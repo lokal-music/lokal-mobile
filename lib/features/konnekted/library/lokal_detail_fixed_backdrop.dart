@@ -2,13 +2,9 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
-/// A stationary, full-bleed album/artist image behind the scrollable detail
-/// content. The photograph never follows the scroll offset. Its lower portion
-/// transitions into the page surface instead of ending at a visible hard edge.
-///
-/// A clipped BackdropFilter softens only the tail of the image, matching the
-/// full-player's artwork-derived blur without continuously blurring the face
-/// or re-decoding a second copy of the artwork.
+/// Stationary artwork shared by artist and album detail pages. A gentle
+/// artwork blur and alpha fade replace the hard boundary at the end of the
+/// header. There is no darkening overlay, tint or drop shadow.
 class LokalDetailFixedBackdrop extends StatelessWidget {
   const LokalDetailFixedBackdrop({
     super.key,
@@ -26,39 +22,42 @@ class LokalDetailFixedBackdrop extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           ColoredBox(color: background),
-          RepaintBoundary(child: artwork),
-          // Blur only the lower part of the portrait / cover. Keeping the
-          // upper image untouched preserves sharp faces and album details.
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: FractionallySizedBox(
-              heightFactor: .38,
-              widthFactor: 1,
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: const SizedBox.expand(),
+          ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (bounds) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0, .56, .72, .88, 1],
+              colors: [
+                Colors.white,
+                Colors.white,
+                Color(0xEEFFFFFF),
+                Color(0x66FFFFFF),
+                Colors.transparent,
+              ],
+            ).createShader(bounds),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(child: artwork),
+                // A stationary, clipped backdrop filter reuses the already
+                // decoded portrait/cover without a second network fetch or
+                // second artwork widget. The blend toward the page color
+                // hides the edge of the blurred portion.
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: FractionallySizedBox(
+                    heightFactor: .38,
+                    widthFactor: 1,
+                    child: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
-          IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0, .40, .59, .76, .90, 1],
-                  colors: [
-                    Colors.black.withValues(alpha: .10),
-                    Colors.transparent,
-                    background.withValues(alpha: .08),
-                    background.withValues(alpha: .52),
-                    background.withValues(alpha: .90),
-                    background,
-                  ],
-                ),
-              ),
+              ],
             ),
           ),
         ],
