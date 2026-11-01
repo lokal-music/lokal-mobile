@@ -342,8 +342,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         artworkUrl: song.albumArt ?? '',
         duration: song.duration,
       );
-      if (seen.add(metadata.key) &&
-          !rows.any((row) => row.owned?.id == song.id))
+      if (seen.add(metadata.key) && seenOwned.add(song.id))
         rows.add(
           _Entry(
             LokalCatalogueTrack(
