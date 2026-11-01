@@ -978,6 +978,11 @@ class PlayerService {
   /// Finds and downloads a queued placeholder ([Song.isPending]) when
   /// playback reaches it; null when it can't be found. Set by
   /// QueuePreResolver.
+  /// Paired desktop tracks must not hold the automatic queue waiting for
+  /// the LAN when the PC is away/offline. Local cache remains playable.
+  Future<bool> Function(Song song)? linkedDesktopAvailable;
+  int _offlineDesktopSkipStreak = 0;
+
   Future<Song?> Function(Song pending)? pendingSongResolver;
   VoidCallback? cancelPendingSongResolution;
   int _pendingPlaybackGeneration = 0;
@@ -6304,6 +6309,28 @@ class PlayerService {
   Future<void> _playSongAtCurrentIndex() async {
     final song = _songAtCurrentIndex();
     if (song == null) return;
+    if (song.sourceType == 'lokal' && linkedDesktopAvailable != null) {
+      var reachable = false;
+      try {
+        reachable = await linkedDesktopAvailable!(song)
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      } catch (_) {
+        reachable = false;
+      }
+      if (!reachable) {
+        _debugLog('[Playback] Desktop unavailable; skipping queue entry ${song.title}');
+        if (++_offlineDesktopSkipStreak >= _playlist.length) {
+          _offlineDesktopSkipStreak = 0;
+          isNetworkLoadingNotifier.value = false;
+          onlinePlaybackError.value =
+              'Desktop files are unavailable. Reconnect to your PC or copy them for offline playback.';
+          return;
+        }
+        await _nextInternal();
+        return;
+      }
+    }
+    _offlineDesktopSkipStreak = 0;
     _markOnlinePreparation(song); // Before initAudio / engine handoff.
     await _playInternal(song);
   }
