@@ -167,6 +167,18 @@ class AlbumArtImportService {
       }
     }
 
+    // iTunes editions are region-dependent. GB may have a cover absent in US
+    // and vice versa, so ask the second storefront only if needed.
+    if (relevantAlbumArtwork(album: album, artist: artist, candidates: candidates).length < 8) {
+      try {
+        candidates.addAll(await _searchITunes(
+          album: album, artist: artist, country: 'US',
+        ));
+      } catch (error) {
+        lastError ??= error;
+      }
+    }
+
     if (relevantAlbumArtwork(album: album, artist: artist, candidates: candidates).length < 12) {
       try {
         candidates.addAll(await _searchDeezer(album: album, artist: artist));
@@ -501,6 +513,7 @@ class AlbumArtImportService {
   Future<List<AlbumArtCandidate>> _searchITunes({
     required String album,
     required String artist,
+    String country = 'GB',
   }) async {
     final query = '$album $artist';
     final response = await _getJson(
@@ -508,7 +521,7 @@ class AlbumArtImportService {
         'term': query,
         'entity': 'album',
         'limit': '10',
-        'country': 'GB',
+        'country': country,
       }),
     );
 
