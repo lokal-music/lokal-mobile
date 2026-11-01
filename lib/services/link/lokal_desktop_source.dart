@@ -369,6 +369,7 @@ class LokalDesktopSource extends NetworkSourceService {
       entity.filePath = file.path;
       entity.title = track['title'] as String? ?? 'Unknown track';
       entity.artist = track['artist'] as String? ?? 'Unknown artist';
+      entity.albumArtist = (track['album_artist'] ?? track['albumArtist'])?.toString();
       entity.album = track['album'] as String?;
       entity.durationMs = ((track['duration'] as num? ?? 0) * 1000).round();
       entity.fileType = extension;
@@ -754,6 +755,7 @@ class LokalDesktopSource extends NetworkSourceService {
       ..dateAdded = DateTime.now();
     entity.title = track['title']?.toString() ?? 'Unknown track';
     entity.artist = track['artist']?.toString() ?? 'Unknown artist';
+    entity.albumArtist = (track['album_artist'] ?? track['albumArtist'])?.toString();
     entity.album = track['album']?.toString();
     entity.genre = _genre(track) ?? entity.genre;
     entity.durationMs = ((track['duration'] as num? ?? 0) * 1000).round();
