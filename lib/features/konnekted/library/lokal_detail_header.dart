@@ -45,7 +45,8 @@ class LokalDetailHeader extends StatelessWidget {
   static double artistHeight(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8);
-    return (size.height * .52 + (scale - 1) * 90).clamp(350.0, 580.0);
+    return (size.height * .52 + (scale - 1) * 90)
+        .clamp(350.0, 580.0).toDouble();
   }
 
   @override
