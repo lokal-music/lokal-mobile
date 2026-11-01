@@ -142,6 +142,45 @@ void main() {
     }
   }
 
+  testWidgets('tab state survives the push and disposes once after exit', (
+    tester,
+  ) async {
+    final inits = <String, int>{};
+    final disposals = <String, int>{};
+
+    Widget page(String tab) => MaterialApp(
+      home: LokalNavigationSwitcher(
+        child: KeyedSubtree(
+          key: ValueKey(tab),
+          child: _TabLifecycleProbe(
+            name: tab,
+            onInit: (name) => inits[name] = (inits[name] ?? 0) + 1,
+            onDispose: (name) =>
+                disposals[name] = (disposals[name] ?? 0) + 1,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(page('Home'));
+    expect(inits['Home'], 1);
+    await tester.pumpWidget(page('Library'));
+    await tester.pump(const Duration(milliseconds: 75));
+    expect(inits['Home'], 1);
+    expect(disposals['Home'] ?? 0, 0);
+    expect(inits['Library'], 1);
+    await tester.pumpAndSettle();
+    expect(disposals['Home'], 1);
+    expect(inits['Library'], 1,
+        reason: 'Completing the transition must not recreate Library');
+    expect(disposals['Library'] ?? 0, 0);
+
+    await tester.pumpWidget(page('Search'));
+    await tester.pumpAndSettle();
+    expect(disposals['Library'], 1);
+    expect(inits['Search'], 1);
+  });
+
   testWidgets('reduced motion removes transient tab immediately',
       (tester) async {
     AppConstants.setAnimationsEnabled(false);
@@ -206,4 +245,37 @@ void main() {
       await tester.pumpAndSettle();
     });
   }
+}
+
+class _TabLifecycleProbe extends StatefulWidget {
+  const _TabLifecycleProbe({
+    required this.name,
+    required this.onInit,
+    required this.onDispose,
+  });
+
+  final String name;
+  final ValueChanged<String> onInit;
+  final ValueChanged<String> onDispose;
+
+  @override
+  State<_TabLifecycleProbe> createState() => _TabLifecycleProbeState();
+}
+
+class _TabLifecycleProbeState extends State<_TabLifecycleProbe> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onInit(widget.name);
+  }
+
+  @override
+  void dispose() {
+    widget.onDispose(widget.name);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox.expand(child: Center(child: Text(widget.name)));
 }
