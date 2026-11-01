@@ -160,7 +160,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (oldWidget.title != widget.title ||
         oldWidget.artist != widget.artist ||
         oldWidget.isArtist != widget.isArtist) {
-      _scrollController.jumpTo(0);
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _cachedLibrary = null;
       _cachedLocal = null;
       _cachedRelated = null;
