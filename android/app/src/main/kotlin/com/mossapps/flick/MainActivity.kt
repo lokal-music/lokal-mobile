@@ -64,6 +64,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Log
 import android.os.PowerManager
+import android.view.WindowManager
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import androidx.documentfile.provider.DocumentFile
@@ -202,6 +203,14 @@ class MainActivity: FlutterActivity() {
         // Make the Flutter surface occupy the real window, including cutouts;
         // Flutter SafeArea still keeps the interactive header below the icons.
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Allow the artwork to paint into display cutouts as well, while
+        // SafeArea protects the back and menu controls from notch geometry.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val params = window.attributes
+            params.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            window.attributes = params
+        }
         @Suppress("DEPRECATION")
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
