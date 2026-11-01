@@ -64,6 +64,15 @@ class _InlineLyricsPanelState extends ConsumerState<InlineLyricsPanel> {
   void initState() {
     super.initState();
     _loadLyricsForSong(widget.song);
+    LyricsPlaybackPrefetch.instance.linkedLyricsUpdated
+        .addListener(_onLinkedLyrics);
+  }
+
+  void _onLinkedLyrics() {
+    if (LyricsPlaybackPrefetch.instance.linkedLyricsUpdated.value ==
+        widget.song.id) {
+      unawaited(_loadLyricsForSong(widget.song));
+    }
   }
 
   @override
@@ -78,6 +87,8 @@ class _InlineLyricsPanelState extends ConsumerState<InlineLyricsPanel> {
 
   @override
   void dispose() {
+    LyricsPlaybackPrefetch.instance.linkedLyricsUpdated
+        .removeListener(_onLinkedLyrics);
     _scrollController.dispose();
     super.dispose();
   }
