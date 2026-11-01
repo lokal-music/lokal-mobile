@@ -59,12 +59,10 @@ import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.mediarouter.media.MediaRouter
-import androidx.core.view.WindowCompat
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Log
 import android.os.PowerManager
-import android.view.WindowManager
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import androidx.documentfile.provider.DocumentFile
@@ -197,25 +195,6 @@ class MainActivity: FlutterActivity() {
         JavaCrashRecorder.install(applicationContext)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         super.onCreate(savedInstanceState)
-        // The edge-to-edge Dart request alone is not sufficient on every
-        // Android/OEM window implementation: a fitted decor view reserves an
-        // opaque status-bar-height strip above full-bleed artist artwork.
-        // Make the Flutter surface occupy the real window, including cutouts;
-        // Flutter SafeArea still keeps the interactive header below the icons.
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        // Allow the artwork to paint into display cutouts as well, while
-        // SafeArea protects the back and menu controls from notch geometry.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val params = window.attributes
-            params.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            window.attributes = params
-        }
-        @Suppress("DEPRECATION")
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isStatusBarContrastEnforced = false
-        }
         volumeControlStream = AudioManager.STREAM_MUSIC
 
         if (!nativeInitRustAndroidContext(applicationContext)) {
