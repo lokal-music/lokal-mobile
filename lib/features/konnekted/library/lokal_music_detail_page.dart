@@ -246,6 +246,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   }
 
   Future<void> _setOnline(bool value) async {
+    if (_busy || _loading || value == _online) return;
     setState(() => _online = value);
     ++_request;
     await (await SharedPreferences.getInstance()).setBool(_consentKey, value);
@@ -285,8 +286,13 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         unawaited(_cacheOnlinePortrait(image!));
       }
     } catch (error) {
-      if (mounted && request == _request)
-        setState(() => _error = discoveryError(error));
+      if (mounted && _online && request == _request) {
+        final message = discoveryError(error);
+        setState(() => _error = message);
+        // The large catalogue panel was removed. Preserve failure feedback
+        // without reintroducing a row or a label beside the header icon.
+        _progress.fail(message);
+      }
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
@@ -662,6 +668,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               onBack: () => Navigator.of(context).maybePop(),
               onlineEnabled: _online,
               onlineLoading: _loading,
+              onlineDisabled: _busy,
               onOnline: () => unawaited(_setOnline(!_online)),
               onMore: () => unawaited(_showMenu(rows, local, allLiked)),
               artistCredit: widget.isArtist ? null : ArtistCreditLinks(
@@ -754,7 +761,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                 title: lokalText('Nothing here yet'),
                 message: lokalText(
                   _online
-                      ? 'No matching tracks found. Try refreshing the catalogue.'
+                      ? (_error ?? 'No matching tracks found. Try refreshing the catalogue.')
                       : 'Enable online mode to discover songs and releases.',
                 ),
               ),
