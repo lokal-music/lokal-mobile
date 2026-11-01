@@ -18,6 +18,7 @@ class LokalNavigationSwitcher extends StatefulWidget {
     super.key,
     required this.child,
     this.direction = 1,
+    this.retainVisitedTabs = false,
   });
 
   /// Each destination must carry its stable identity key.
@@ -25,6 +26,11 @@ class LokalNavigationSwitcher extends StatefulWidget {
 
   /// +1 for moving to a tab on the right; -1 for a tab on the left.
   final int direction;
+
+  /// Lazily retain at most three visited tab trees for instant return visits.
+  /// No disk persistence, eager build, or long-lived cache of every route.
+  /// Defaults off for generic switches; the main shell explicitly opts in.
+  final bool retainVisitedTabs;
 
   static const enterDuration = Duration(milliseconds: 330);
   static const curve = Cubic(.2, 0, 0, 1);
@@ -38,10 +44,29 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
   late final AnimationController _progress;
   Widget? _outgoing;
   int _travel = 1;
+  final Map<Key, Widget> _visited = {};
+
+  void _remember(Widget child) {
+    final key = child.key;
+    if (key == null) return;
+    _visited.remove(key);
+    _visited[key] = child;
+    // Do not evict an outgoing tree while its transition is still visible.
+    while (_visited.length > 3) {
+      final protected = {_outgoing?.key, widget.child.key};
+      final old = _visited.keys.firstWhere(
+        (key) => !protected.contains(key),
+        orElse: () => _visited.keys.first,
+      );
+      if (protected.contains(old)) break;
+      _visited.remove(old);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    if (widget.retainVisitedTabs) _remember(widget.child);
     _progress = AnimationController(
       vsync: this,
       duration: LokalNavigationSwitcher.enterDuration,
@@ -57,6 +82,7 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
   @override
   void didUpdateWidget(covariant LokalNavigationSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.retainVisitedTabs) _remember(widget.child);
     if (oldWidget.child.key == widget.child.key) return;
 
     _travel = widget.direction < 0 ? -1 : 1;
@@ -67,6 +93,8 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
       // Replacing a rapidly interrupted transition discards the older
       // outgoing tree. At most two destination trees can be mounted.
       _outgoing = oldWidget.child;
+      // A widget last visited much earlier keeps its State/scroll position.
+      // Both route surfaces remain mounted only for the transition period.
       _progress.forward(from: 0);
     }
   }
@@ -85,6 +113,58 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
     super.dispose();
   }
 
+  Widget _retainedScene(double direction, bool animating) {
+    final current = widget.child.key;
+    final exiting = animating ? _outgoing?.key : null;
+    // Put the incoming surface last so it paints in front, while the
+    // outgoing screen occupies the adjacent viewport region.
+    final ordered = [
+      ..._visited.keys.where((key) => key != current && key != exiting),
+      if (exiting != null && exiting != current) exiting,
+      if (current != null) current,
+    ];
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          for (final key in ordered)
+            AnimatedBuilder(
+              key: ValueKey(key),
+              animation: _progress,
+              child: RepaintBoundary(
+                child: TickerMode(
+                  enabled: key == current,
+                  child: _visited[key]!,
+                ),
+              ),
+              builder: (context, page) {
+                final isCurrent = key == current;
+                final isExiting = key == exiting;
+                final progress = animating
+                    ? LokalNavigationSwitcher.curve.transform(_progress.value)
+                    : 1.0;
+                return Offstage(
+                  offstage: !isCurrent && !isExiting,
+                  child: IgnorePointer(
+                    ignoring: !isCurrent,
+                    child: FractionalTranslation(
+                      translation: Offset(
+                        isCurrent
+                            ? direction * (1 - progress)
+                            : isExiting ? -direction * progress : 0,
+                        0,
+                      ),
+                      child: page!,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final reduceMotion = _reduceMotion;
@@ -92,6 +172,10 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
     final direction =
         (Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0) *
         _travel;
+
+    if (widget.retainVisitedTabs && widget.child.key != null) {
+      return _retainedScene(direction, animating);
+    }
 
     // Keep this exact Stack/AnimatedBuilder ancestry even when idle.
     // Reparenting a KeyedSubtree from a bare child to a different wrapper
