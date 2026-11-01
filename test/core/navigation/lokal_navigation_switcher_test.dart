@@ -42,6 +42,42 @@ void main() {
         reason: 'Old tabs are transient, not persistently cached');
   });
 
+  for (final motion in [1, -1]) {
+    testWidgets('Home tab moves in the correct direction: $motion', (tester) async {
+      Widget page(String tab) => MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.ltr,
+          child: LokalNavigationSwitcher(
+            direction: motion,
+            child: SizedBox.expand(
+              key: ValueKey(tab),
+              child: Center(child: Text(tab)),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(page('Library'));
+      await tester.pumpAndSettle();
+      final center = tester.getCenter(find.text('Library')).dx;
+      await tester.pumpWidget(page('Home'));
+      await tester.pump(const Duration(milliseconds: 45));
+      expect(
+        (tester.getCenter(find.text('Home')).dx - center) * motion,
+        greaterThan(0),
+        reason: 'Incoming Home must enter from the selected tab direction',
+      );
+      expect(
+        (tester.getCenter(find.text('Library')).dx - center) * motion,
+        lessThan(0),
+        reason: 'Departing page must recede instead of ghosting over Home',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Library'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+  }
+
   testWidgets('reduced motion removes transient tab immediately',
       (tester) async {
     AppConstants.setAnimationsEnabled(false);
