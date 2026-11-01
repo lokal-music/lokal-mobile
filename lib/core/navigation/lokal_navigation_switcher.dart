@@ -26,12 +26,21 @@ class LokalNavigationSwitcher extends StatelessWidget {
         AppConstants.animationNormal == Duration.zero ||
         LokalPerformanceScope.of(context);
 
+    final direction = Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0;
+
     return ClipRect(
       child: AnimatedSwitcher(
         duration: reduceMotion ? Duration.zero : enterDuration,
         reverseDuration: reduceMotion ? Duration.zero : exitDuration,
         switchInCurve: const Cubic(.2, 0, 0, 1),
         switchOutCurve: const Cubic(.2, 0, 0, 1),
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          alignment: Alignment.center,
+          children: [
+            if (previousChildren.isNotEmpty) previousChildren.last,
+            ?currentChild,
+          ],
+        ),
         transitionBuilder: (child, animation) => AnimatedBuilder(
           animation: animation,
           child: RepaintBoundary(child: child),
@@ -44,7 +53,7 @@ class LokalNavigationSwitcher extends StatelessWidget {
                 child: Transform.translate(
                   offset: Offset(
                     (leaving ? -translatePixels : translatePixels) *
-                        (1 - animation.value),
+                        direction * (1 - animation.value),
                     0,
                   ),
                   child: cachedChild,
