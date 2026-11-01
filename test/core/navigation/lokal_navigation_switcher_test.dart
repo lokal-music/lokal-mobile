@@ -78,6 +78,70 @@ void main() {
     });
   }
 
+  for (final textDirection in TextDirection.values) {
+    for (final tabDirection in [-1, 1]) {
+      testWidgets(
+        'tab pages meet without overlap or black gap: '
+        '$textDirection / $tabDirection',
+        (tester) async {
+          Widget page(String name) => MaterialApp(
+            home: Directionality(
+              textDirection: textDirection,
+              child: LokalNavigationSwitcher(
+                direction: tabDirection,
+                child: SizedBox.expand(
+                  key: ValueKey(name),
+                  child: ColoredBox(
+                    color: name == 'old'
+                        ? const Color(0xFF28405C)
+                        : const Color(0xFF54652A),
+                    child: Center(child: Text(name)),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          await tester.pumpWidget(page('old'));
+          await tester.pumpAndSettle();
+          await tester.pumpWidget(page('new'));
+          final sign = (textDirection == TextDirection.rtl ? -1 : 1) *
+              tabDirection;
+
+          // At every sampled progress both pages are adjacent. Their
+          // translated bounds exactly partition the viewport: no double
+          // exposure and no unpainted strip between them.
+          for (final milliseconds in [15, 35, 50, 65, 80]) {
+            await tester.pump(Duration(milliseconds: milliseconds));
+            final oldRect = tester.getRect(find.byKey(const ValueKey('old')));
+            final newRect = tester.getRect(find.byKey(const ValueKey('new')));
+            final screen = tester.getSize(find.byType(LokalNavigationSwitcher));
+            if (sign > 0) {
+              expect((oldRect.right - newRect.left).abs(), lessThan(.1));
+              expect(oldRect.left, lessThanOrEqualTo(0));
+              expect(newRect.right, greaterThanOrEqualTo(screen.width));
+            } else {
+              expect((newRect.right - oldRect.left).abs(), lessThan(.1));
+              expect(newRect.left, lessThanOrEqualTo(0));
+              expect(oldRect.right, greaterThanOrEqualTo(screen.width));
+            }
+          }
+
+          expect(
+            find.descendant(
+              of: find.byType(LokalNavigationSwitcher),
+              matching: find.byType(FadeTransition),
+            ),
+            findsNothing,
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('old'), findsNothing);
+          expect(find.text('new'), findsOneWidget);
+        },
+      );
+    }
+  }
+
   testWidgets('reduced motion removes transient tab immediately',
       (tester) async {
     AppConstants.setAnimationsEnabled(false);
