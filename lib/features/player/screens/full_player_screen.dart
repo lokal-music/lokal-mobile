@@ -240,6 +240,7 @@ class _FullPlayerScreenState extends ConsumerState<FullPlayerScreen>
   @override
   void initState() {
     super.initState();
+    LokalPerformanceAdvisor.noteNavigation(surface: 'full-player');
     LokalPerformanceAdvisor.enterPlayerSurface('modern-full-player');
     _volumeControl = PlayerVolumeControl(_player);
     _volume = _volumeControl.value;
