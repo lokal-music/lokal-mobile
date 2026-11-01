@@ -6,6 +6,9 @@ import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/data/repositories/song_repository.dart';
 import 'package:flick/features/konnekted/lokal_home_greeting.dart';
 import 'package:flick/features/konnekted/lokal_mixes.dart';
+import 'package:flick/features/konnekted/library/lokal_library_kit.dart';
+import 'package:flick/features/konnekted/library/lokal_song_browser.dart';
+import 'package:flick/features/konnekted/library/lokal_navigation.dart';
 import 'package:flick/features/settings/lokal/lokal_settings_group.dart';
 import 'package:flick/features/songs/widgets/song_actions_bottom_sheet.dart';
 import 'package:flick/models/song.dart';
@@ -787,11 +790,27 @@ class _MixCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              mix.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => pushLokalPage(
+                context,
+                LokalMixPage(mix: mix),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(
+                      mix.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600),
+                    )),
+                    const Icon(Icons.chevron_right_rounded, size: 18),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 2),
             Text(
@@ -801,6 +820,46 @@ class _MixCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Your Mixes are browsable playlists; tapping the collage still plays.
+class LokalMixPage extends ConsumerWidget {
+  const LokalMixPage({super.key, required this.mix});
+  final LokalMix mix;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final width = MediaQuery.sizeOf(context).width;
+    return LokalLibraryPage(
+      title: mix.title,
+      header: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+        child: Column(
+          children: [
+            SizedBox.square(
+              dimension: (width * .55).clamp(156.0, 300.0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: KonnektedMixArt(songs: mix.tracks),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(mix.title,
+              style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700)),
+            Text(lokalSongCount(mix.tracks.length)),
+          ],
+        ),
+      ),
+      slivers: [
+        LokalSongBrowser(
+          songs: mix.tracks,
+          initialSort: LokalSongSort.original,
+          originalLabel: lokalText('Mix order'),
+          searchHint: lokalText('Search in mix'),
+        ),
+      ],
     );
   }
 }
