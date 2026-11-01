@@ -41,6 +41,11 @@ class CachedImageWidget extends StatefulWidget {
   /// Whether to use thumbnail (lower resolution) for better performance
   final bool useThumbnail;
 
+  /// Fade in only the *decoded image*, never the entire page. The previous
+  /// frame is preserved when an artwork provider changes, avoiding flashes.
+  /// Opt-in for artwork-dominant screens; list thumbnails remain unchanged.
+  final bool revealOnLoad;
+
   /// Target width for thumbnail (if useThumbnail is true)
   final int? thumbnailWidth;
 
@@ -57,6 +62,7 @@ class CachedImageWidget extends StatefulWidget {
     this.width,
     this.height,
     this.useThumbnail = false,
+    this.revealOnLoad = false,
     this.thumbnailWidth,
     this.thumbnailHeight,
   });
@@ -254,6 +260,37 @@ class _CachedImageWidgetState extends State<CachedImageWidget> {
     return null;
   }
 
+  Widget _decodedFrame(
+    BuildContext context,
+    Widget image,
+    int? frame,
+    bool synchronous,
+  ) {
+    final decoded = synchronous || frame != null;
+    final placeholder = SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: widget.placeholder ?? CachedImageWidget.defaultPlaceholder(),
+    );
+    if (!widget.revealOnLoad) return decoded ? image : placeholder;
+    return AnimatedSwitcher(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 240),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      child: decoded
+          ? KeyedSubtree(
+              key: const ValueKey('decoded-artwork'),
+              child: image,
+            )
+          : KeyedSubtree(
+              key: const ValueKey('pending-artwork'),
+              child: placeholder,
+            ),
+    );
+  }
+
   Widget _buildFileImage(String imagePath, int? decodeWidth) {
     final file = File(imagePath);
 
@@ -262,16 +299,9 @@ class _CachedImageWidgetState extends State<CachedImageWidget> {
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded || frame != null) {
-          return child;
-        }
-        return SizedBox(
-          width: widget.width,
-          height: widget.height,
-          child: widget.placeholder ?? CachedImageWidget.defaultPlaceholder(),
-        );
-      },
+      frameBuilder: (context, child, frame, synchronous) =>
+          _decodedFrame(context, child, frame, synchronous),
+      gaplessPlayback: widget.revealOnLoad,
       errorBuilder: (context, error, stackTrace) {
         _recoverFailedFile(imagePath);
         return SizedBox(
@@ -342,14 +372,9 @@ class _CachedImageWidgetState extends State<CachedImageWidget> {
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
-      frameBuilder: (context, child, frame, synchronous) {
-        if (synchronous || frame != null) return child;
-        return SizedBox(
-          width: widget.width,
-          height: widget.height,
-          child: widget.placeholder ?? CachedImageWidget.defaultPlaceholder(),
-        );
-      },
+      frameBuilder: (context, child, frame, synchronous) =>
+          _decodedFrame(context, child, frame, synchronous),
+      gaplessPlayback: widget.revealOnLoad,
       errorBuilder: (context, error, trace) =>
           index + 1 < urls.length
               ? attempt(index + 1)
@@ -360,7 +385,7 @@ class _CachedImageWidgetState extends State<CachedImageWidget> {
                       CachedImageWidget.defaultErrorWidget(),
                 ),
       loadingBuilder: (context, child, progress) =>
-          progress == null
+          widget.revealOnLoad || progress == null
               ? child
               : SizedBox(
                   width: widget.width,
