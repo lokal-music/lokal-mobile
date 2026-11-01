@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -7,7 +8,7 @@ import 'package:flutter/material.dart';
 /// without a sharp transition into brighter image content are left untouched.
 @visibleForTesting
 ({int top, int bottom}) portraitBlackBars(
-  ui.ByteData bytes, int width, int height,
+  ByteData bytes, int width, int height,
 ) {
   if (width < 32 || height < 32) return (top: 0, bottom: 0);
   final pixels = bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes);
