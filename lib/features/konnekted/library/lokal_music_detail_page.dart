@@ -3,6 +3,7 @@ import 'package:flick/features/library_jobs/artist_metadata.dart';
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flick/features/appearance/lokal_performance_advisor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:http/http.dart' as http;
@@ -129,6 +130,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   @override
   void initState() {
     super.initState();
+    LokalPerformanceAdvisor.noteNavigation(surface: 'detail');
     _restore();
   }
 
