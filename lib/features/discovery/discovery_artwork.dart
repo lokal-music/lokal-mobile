@@ -178,7 +178,8 @@ class DiscoveryArtworkResolver {
 
   Future<List<Map>> _rows(Uri url, String field) async {
     try {
-      final data = (await _http.json(url))[field];
+      final data = (await _http.json(url)
+          .timeout(const Duration(seconds: 5)))[field];
       return data is List ? data.whereType<Map>().toList() : const [];
     } catch (error) {
       final failure = error.toString();
@@ -288,7 +289,14 @@ class DiscoveryArtworkResolver {
     // a track credits a featured performer first. Try one additional credited
     // artist only after the strict first lookup fails, and still require an
     // exact album/title match. Never accept the first unrelated search hit.
-    if (album) {
+    // Do not treat production/remix roles as alternate release owners.
+    // Such credits are intentionally parseable for navigation, but they
+    // must not authorize album cover replacements from another producer.
+    final hasProductionCredit = RegExp(
+      r'\b(?:prod(?:uced)?\.?|remix(?:ed)?|instrumental by)\b',
+      caseSensitive: false,
+    ).hasMatch(request.artist);
+    if (album && !hasProductionCredit) {
       final credits = splitArtistCredits(request.artist);
       for (final credit in credits.skip(1).take(2)) {
         final alternate = await _rows(
