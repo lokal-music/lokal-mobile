@@ -399,6 +399,29 @@ class LokalDesktopSource extends NetworkSourceService {
     }
   }
 
+  // Streaming a PC-only catalogue row should display its saved desktop lyrics
+  // without requiring a permanent audio-file copy first.
+  final Set<String> _lyricsRequests = <String>{};
+
+  Future<void> syncPlayingDesktopLyrics(Song song) async {
+    if (song.sourceType != 'lokal' ||
+        song.remoteServerId == null || song.remoteId == null) return;
+    final key = '${song.remoteServerId}:${song.remoteId}';
+    if (!_lyricsRequests.add(key)) return;
+    try {
+      final server = await Database.networkServers.get(song.remoteServerId!);
+      final id = int.tryParse(song.id);
+      if (server == null || id == null) return;
+      final row = await Database.songs.get(id);
+      if (row?.remoteId != song.remoteId ||
+          row?.remoteServerId != song.remoteServerId) return;
+      await syncCopiedLyrics(server, copies: [row!]);
+    } finally {
+      // A later attempt can retry if the desktop was offline.
+      _lyricsRequests.remove(key);
+    }
+  }
+
   Future<void> syncCopiedLyrics(
     NetworkServerEntity server, {
     List<SongEntity>? copies,
