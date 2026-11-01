@@ -970,17 +970,33 @@ class _SongTile extends ConsumerWidget {
             ),
           ),
         ),
-        title: Text(
-          song.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontFamily: 'GoogleSansFlex',
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-            color: context.adaptiveTextPrimary,
-          ),
+        title: Row(
+          children: [
+            Expanded(child: Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'GoogleSansFlex',
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                color: context.adaptiveTextPrimary,
+              ),
+            )),
+            if (song.sourceType == 'lokal') ...[
+              const SizedBox(width: 7),
+              Tooltip(
+                message: 'Desktop file · Lokal Link',
+                child: Semantics(
+                  label: 'Desktop file',
+                  child: Icon(Icons.computer_rounded,
+                    color: context.adaptiveTextTertiary, size: 16),
+                ),
+              ),
+            ],
+          ],
         ),
+        // Desktop badge lives beside the search result name.
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
