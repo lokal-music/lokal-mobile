@@ -37,6 +37,7 @@ import 'package:flick/features/link/lokal_ghost_availability.dart';
 import 'artist_follow_store.dart';
 import 'lokal_artwork_reveal.dart';
 import 'lokal_detail_header.dart';
+import 'lokal_detail_fixed_backdrop.dart';
 import 'lokal_library_groups.dart';
 import 'lokal_library_kit.dart';
 import 'lokal_online_catalogue.dart';
@@ -655,15 +656,33 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     );
     return Scaffold(
       backgroundColor: pageColor,
-      body: CustomScrollView(
-        controller: _scrollController,
-        primary: false,
-        slivers: [
+      body: Stack(
+        children: [
+          // Artwork sits outside the scrolling slivers and stays fixed under
+          // the system status bar. Both detail types share the same crop.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: LokalDetailHeader.artistHeight(context),
+            child: IgnorePointer(
+              child: LokalDetailFixedBackdrop(
+                artwork: stagedArtwork,
+                background: pageColor,
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: CustomScrollView(
+              controller: _scrollController,
+              primary: false,
+              slivers: [
           SliverToBoxAdapter(
             child: LokalDetailHeader(
               title: widget.title,
               artwork: stagedArtwork,
               isArtist: widget.isArtist,
+              fixedArtwork: true,
               background: pageColor,
               artworkHeroTag: widget.artworkHeroTag,
               metadata: widget.isArtist
@@ -730,6 +749,12 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               ),
             ),
           ),
+          // After the hero, the scrolling page is opaque. It passes across
+          // the stationary image without exposing wallpaper behind song rows.
+          DecoratedSliver(
+            decoration: BoxDecoration(color: pageColor),
+            sliver: SliverMainAxisGroup(
+              slivers: [
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
@@ -908,6 +933,12 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             ),
           SliverToBoxAdapter(
             child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
+          ),
+              ],
+            ),
+          ),
+              ],
+            ),
           ),
         ],
       ),
