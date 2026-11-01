@@ -2,6 +2,7 @@ import 'package:flick/widgets/lokal/lokal_quality.dart';
 import 'package:flick/widgets/lokal/lokal_page_geometry.dart';
 
 import '../../link/lokal_ghost_availability.dart';
+import 'package:flick/services/link/library_song_identity.dart';
 
 import 'dart:async';
 
@@ -305,10 +306,17 @@ class LokalLargeTitle extends StatelessWidget {
 
 /// A section title inside a page, with an optional "See all".
 class LokalSectionTitle extends StatelessWidget {
-  const LokalSectionTitle({super.key, required this.title, this.onSeeAll});
+  const LokalSectionTitle({
+    super.key,
+    required this.title,
+    this.onSeeAll,
+    this.actionLabel,
+  });
 
   final String title;
   final VoidCallback? onSeeAll;
+  /// Optional action text for expandable sections (e.g. See all / Hide).
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -331,7 +339,10 @@ class LokalSectionTitle extends StatelessWidget {
         if (onSeeAll != null)
           TextButton(
             onPressed: onSeeAll,
-            child: Text(lokalText('See all'), semanticsLabel: 'See all $title'),
+            child: Text(
+              actionLabel ?? lokalText('See all'),
+              semanticsLabel: '${actionLabel ?? lokalText('See all')} $title',
+            ),
           ),
       ],
     ),
@@ -462,7 +473,8 @@ class LokalTrackRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.lokal;
-    final second = subtitle ?? song.artist;
+    final second = subtitle ??
+        (song.sourceType == 'lokal' ? creditedLeadArtist(song) : song.artist);
     final available =
         song.sourceType != 'lokal' ||
         (ref.watch(lokalSongAvailableProvider(song)).value ?? false);

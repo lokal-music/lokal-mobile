@@ -8,6 +8,7 @@ import 'package:flick/widgets/lokal/lokal_choice_sheet.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/konnekted_data.dart';
 import 'package:flick/models/song.dart';
+import 'package:flick/services/link/library_song_identity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -329,7 +330,9 @@ class _LokalSongBrowserState extends ConsumerState<LokalSongBrowser> {
         songs.sort((a, b) => byTitle(a, b) * direction);
       case LokalSongSort.artist:
         final artistKeys = <String, String>{
-          for (final song in songs) song.id: song.artist.toLowerCase(),
+          for (final song in songs)
+            song.id: (song.sourceType == 'lokal'
+                ? creditedLeadArtist(song) : song.artist).toLowerCase(),
         };
         songs.sort((a, b) {
           final c = artistKeys[a.id]!.compareTo(artistKeys[b.id]!);

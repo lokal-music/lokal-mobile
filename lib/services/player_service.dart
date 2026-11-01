@@ -978,6 +978,12 @@ class PlayerService {
   /// Finds and downloads a queued placeholder ([Song.isPending]) when
   /// playback reaches it; null when it can't be found. Set by
   /// QueuePreResolver.
+  /// Paired desktop tracks must not hold the automatic queue waiting for
+  /// the LAN when the PC is away/offline. Local cache remains playable.
+  Future<bool> Function(Song song)? linkedDesktopAvailable;
+  final Set<int> _offlineDesktopSkippedSlots = <int>{};
+  List<Song>? _offlineDesktopSkipQueue;
+
   Future<Song?> Function(Song pending)? pendingSongResolver;
   VoidCallback? cancelPendingSongResolution;
   int _pendingPlaybackGeneration = 0;
@@ -6304,6 +6310,36 @@ class PlayerService {
   Future<void> _playSongAtCurrentIndex() async {
     final song = _songAtCurrentIndex();
     if (song == null) return;
+    if (song.sourceType == 'lokal' && linkedDesktopAvailable != null) {
+      var reachable = false;
+      try {
+        reachable = await linkedDesktopAvailable!(song)
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      } catch (_) {
+        reachable = false;
+      }
+      if (!reachable) {
+        _debugLog('[Playback] Desktop unavailable; skipping queue entry ${song.title}');
+        if (!identical(_offlineDesktopSkipQueue, _playlist)) {
+          _offlineDesktopSkipQueue = _playlist;
+          _offlineDesktopSkippedSlots.clear();
+        }
+        _offlineDesktopSkippedSlots.add(_currentIndex);
+        if (_offlineDesktopSkippedSlots.length >= _playlist.length) {
+          _offlineDesktopSkippedSlots.clear();
+          isNetworkLoadingNotifier.value = false;
+          onlinePlaybackError.value =
+              'Desktop files are unavailable. Reconnect to your PC or copy them for offline playback.';
+          return;
+        }
+        // In random shuffle, excluded slots are never reselected during this
+        // failure cycle. Otherwise a repeated failed random pick could
+        // exhaust the budget before a phone-local song is ever attempted.
+        await _nextInternal();
+        return;
+      }
+    }
+    _offlineDesktopSkippedSlots.clear();
     _markOnlinePreparation(song); // Before initAudio / engine handoff.
     await _playInternal(song);
   }
@@ -6328,6 +6364,20 @@ class PlayerService {
 
     final nextIndex = isLastTrack ? 0 : _currentIndex + 1;
     final nextSong = _playlist[nextIndex];
+    if (nextSong.sourceType == 'lokal' && linkedDesktopAvailable != null) {
+      bool available;
+      try {
+        available = await linkedDesktopAvailable!(nextSong).timeout(
+          const Duration(seconds: 3), onTimeout: () => false,
+        );
+      } catch (_) {
+        available = false;
+      }
+      if (!available) {
+        _debugLog('[crossfade] Desktop successor unavailable; do not preload');
+        return;
+      }
+    }
     _debugLog(
       '[crossfade] queue successor: index=$nextIndex, title=${nextSong.title}, '
       'active=$_isCrossfadeActive, '
@@ -6385,7 +6435,10 @@ class PlayerService {
     final isLastTrack = _currentIndex >= _playlist.length - 1;
     if (isLastTrack && loopModeNotifier.value != LoopMode.all) return null;
     final next = _playlist[isLastTrack ? 0 : _currentIndex + 1];
-    // Not downloaded yet: let the track end, then it's looked up and played.
+    // PC streams are checked asynchronously by _playSongAtCurrentIndex.
+    // Do not let the native engine commit an unchecked desktop successor.
+    // Phone-copied files have sourceType=null and remain gapless.
+    if (next.sourceType == 'lokal') return null;
     return next.isPending ? null : next;
   }
 
@@ -7092,12 +7145,18 @@ class PlayerService {
 
     if (shuffleModeNotifier.value == ShuffleMode.random &&
         _playlist.length > 1) {
-      final rng = math.Random();
-      int targetIndex;
-      do {
-        targetIndex = rng.nextInt(_playlist.length);
-      } while (targetIndex == _currentIndex && _playlist.length > 1);
-      _setCurrentIndex(targetIndex);
+      final candidates = <int>[
+        for (var index = 0; index < _playlist.length; index++)
+          if (index != _currentIndex &&
+              !_offlineDesktopSkippedSlots.contains(index)) index,
+      ];
+      if (candidates.isEmpty) {
+        _offlineDesktopSkippedSlots.clear();
+        onlinePlaybackError.value =
+            'Desktop files are unavailable. Reconnect to your PC or copy them for offline playback.';
+        return;
+      }
+      _setCurrentIndex(candidates[math.Random().nextInt(candidates.length)]);
       await _playSongAtCurrentIndex();
       return;
     }

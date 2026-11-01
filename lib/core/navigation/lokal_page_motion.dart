@@ -32,6 +32,9 @@ class LokalPageMotion extends PageTransitionsBuilder {
   static const duration = Duration(milliseconds: 320);
   static const reverseDuration = Duration(milliseconds: 285);
   static const enterOffset = .34;
+  // A pop must slide until the outgoing page is entirely past the edge,
+  // rather than removing it after the same short push distance.
+  static const exitOffset = 1.0;
   static const behindOffset = -.10;
   static const enterCurve = Cubic(.2, 0, 0, 1);
   static const backCurve = Cubic(.23, .65, .3, 1);
@@ -55,24 +58,15 @@ class LokalPageMotion extends PageTransitionsBuilder {
         ? -1.0
         : 1.0;
 
-    final foregroundProgress = CurvedAnimation(
-      parent: animation,
-      curve: enterCurve,
-      reverseCurve: backCurve,
-    );
     final backgroundProgress = CurvedAnimation(
       parent: secondaryAnimation,
       curve: enterCurve,
       reverseCurve: backCurve,
     );
 
-    final incoming = SlideTransition(
-      position: Tween<Offset>(
-        begin: Offset(enterOffset * direction, 0),
-        end: Offset.zero,
-      ).animate(foregroundProgress),
-      // Paint the content once, then move the layer. Artwork-heavy artist,
-      // album and Search screens should not reraster on each animation tick.
+    final incoming = _ContinuousForegroundSlide(
+      animation: animation,
+      direction: direction,
       child: RepaintBoundary(child: child),
     );
 
@@ -89,6 +83,95 @@ class LokalPageMotion extends PageTransitionsBuilder {
       child: incoming,
     );
   }
+}
+
+/// Maintains the rendered position across a mid-flight push/Back reversal.
+/// The entering path starts 34% offscreen, while pop finishes 100% offscreen.
+/// Switching between those unequal travel distances without an anchor would
+/// make a partially entered page jump when system Back is invoked.
+class _ContinuousForegroundSlide extends StatefulWidget {
+  const _ContinuousForegroundSlide({
+    required this.animation,
+    required this.direction,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final double direction;
+  final Widget child;
+
+  @override
+  State<_ContinuousForegroundSlide> createState() =>
+      _ContinuousForegroundSlideState();
+}
+
+class _ContinuousForegroundSlideState
+    extends State<_ContinuousForegroundSlide> {
+  late AnimationStatus _phase;
+  late double _startValue;
+  late double _startOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  void _initialize() {
+    _phase = widget.animation.status;
+    _startValue = _phase == AnimationStatus.reverse ||
+            _phase == AnimationStatus.completed
+        ? 1.0 : 0.0;
+    _startOffset = _phase == AnimationStatus.reverse ||
+            _phase == AnimationStatus.completed
+        ? 0.0 : LokalPageMotion.enterOffset;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContinuousForegroundSlide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.animation, oldWidget.animation)) _initialize();
+  }
+
+  double _offsetAt(double value) {
+    final p = value.clamp(0.0, 1.0);
+    if (_phase == AnimationStatus.completed) return 0.0;
+    if (_phase == AnimationStatus.dismissed) return _startOffset;
+    if (_phase == AnimationStatus.reverse) {
+      final fraction = _startValue <= 0
+          ? 1.0 : ((_startValue - p) / _startValue).clamp(0.0, 1.0);
+      return _startOffset +
+          (LokalPageMotion.exitOffset - _startOffset) *
+              LokalPageMotion.backCurve.transform(fraction);
+    }
+    final fraction = _startValue >= 1
+        ? 1.0 : ((p - _startValue) / (1 - _startValue)).clamp(0.0, 1.0);
+    return _startOffset *
+        (1 - LokalPageMotion.enterCurve.transform(fraction));
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.animation,
+    child: widget.child,
+    builder: (context, page) {
+      final value = widget.animation.value;
+      final status = widget.animation.status;
+      if (status != _phase) {
+        // Capture the old position at *this exact animation value* before
+        // changing the target. A reverse/cancel at p=.45 stays at the same x.
+        final position = _offsetAt(value);
+        _phase = status;
+        _startValue = value;
+        _startOffset = position;
+        if (status == AnimationStatus.completed) _startOffset = 0;
+      }
+      return FractionalTranslation(
+        translation: Offset(_offsetAt(value) * widget.direction, 0),
+        child: page!,
+      );
+    },
+  );
 }
 
 /// A native Material route keeps Navigator, Hero and Android system Back

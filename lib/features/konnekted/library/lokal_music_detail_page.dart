@@ -246,6 +246,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   }
 
   Future<void> _setOnline(bool value) async {
+    if (_busy || _loading || value == _online) return;
     setState(() => _online = value);
     ++_request;
     await (await SharedPreferences.getInstance()).setBool(_consentKey, value);
@@ -285,8 +286,13 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         unawaited(_cacheOnlinePortrait(image!));
       }
     } catch (error) {
-      if (mounted && request == _request)
-        setState(() => _error = discoveryError(error));
+      if (mounted && _online && request == _request) {
+        final message = discoveryError(error);
+        setState(() => _error = message);
+        // The large catalogue panel was removed. Preserve failure feedback
+        // without reintroducing a row or a label beside the header icon.
+        _progress.fail(message);
+      }
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
@@ -660,7 +666,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                       if (runningTime != null) runningTime,
                     ].join('  ·  '),
               onBack: () => Navigator.of(context).maybePop(),
-              onShare: _share,
+              onlineEnabled: _online,
+              onlineLoading: _loading,
+              onlineDisabled: _busy,
+              onOnline: () => unawaited(_setOnline(!_online)),
               onMore: () => unawaited(_showMenu(rows, local, allLiked)),
               artistCredit: widget.isArtist ? null : ArtistCreditLinks(
                 credit: widget.artist,
@@ -726,86 +735,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: t.surface.withValues(alpha: .8),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: t.border2.withValues(alpha: .65)),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  lokalText('Online catalogue'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: t.text,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                              if (_online)
-                                IconButton(
-                                  tooltip: lokalText('Refresh'),
-                                  onPressed: _loading ? null : () => _load(refresh: true),
-                                  icon: Icon(Icons.refresh_rounded, color: t.muted),
-                                ),
-                              Switch.adaptive(
-                                value: _online,
-                                onChanged: _busy ? null : _setOnline,
-                                activeTrackColor: t.accent,
-                              ),
-                            ],
-                          ),
-                          if (_online) ...[
-                            if (_loading)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 10),
-                                child: LinearProgressIndicator(),
-                              ),
-                            if (!_loading && (_page?.tracks.isEmpty ?? true))
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                child: Text(
-                                  _error ?? lokalText(
-                                    'No online tracks found. Your library is still available.'),
-                                  style: TextStyle(color: t.muted, fontSize: 13),
-                                ),
-                              ),
-                            if (_page?.tracks.isNotEmpty == true)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8, bottom: 6),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    widget.isArtist || _page!.completeAlbum
-                                        ? lokalText('Catalogue: {source}',
-                                            args: {'source': _page!.label})
-                                        : lokalText(
-                                            'Search results from {source}; the full album could not be verified.',
-                                            args: {'source': _page!.label}),
-                                    style: TextStyle(color: t.muted, fontSize: 12),
-                                  ),
-                                ),
-                              ),
-                            if (rows.any((row) => row.owned == null))
-                              TextButton.icon(
-                                onPressed: _busy ? null : () => _download(rows),
-                                icon: const Icon(Icons.download_rounded, size: 18),
-                                label: Text(lokalText('Download missing songs')),
-                              ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
+
                 ],
               ),
             ),
@@ -822,6 +752,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               onSeeAll: widget.isArtist && rows.length > 5
                   ? () => setState(() => _allSongs = !_allSongs)
                   : null,
+              actionLabel: widget.isArtist && _allSongs
+                  ? lokalText('Hide')
+                  : null,
             ),
           ),
           if (show.isEmpty && !_loading)
@@ -831,7 +764,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                 title: lokalText('Nothing here yet'),
                 message: lokalText(
                   _online
-                      ? 'No matching tracks found. Try refreshing the catalogue.'
+                      ? (_error ?? 'No matching tracks found. Try refreshing the catalogue.')
                       : 'Enable online mode to discover songs and releases.',
                 ),
               ),
@@ -989,6 +922,13 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         if (!widget.isArtist && local.isNotEmpty)
           LokalChoice(value: 'identify', label: lokalText('Identify album'),
             icon: Icons.album_rounded),
+        if (_online && !_loading)
+          LokalChoice(value: 'refresh',
+            label: lokalText('Refresh online catalogue'), icon: Icons.refresh_rounded),
+        if (_online && rows.any((row) => row.owned == null))
+          LokalChoice(value: 'download',
+            label: lokalText('Download missing songs'), icon: Icons.download_rounded),
+        LokalChoice(value: 'share', label: l10n.share, icon: Icons.ios_share_rounded),
         LokalChoice(value: 'radio', label: lokalText('Start artist radio'),
           icon: Icons.radio_rounded),
       ],
@@ -1021,6 +961,12 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             initialArtist: widget.artist,
             initialAlbum: widget.title,
           );
+        case 'refresh':
+          await _load(refresh: true);
+        case 'download':
+          await _download(rows);
+        case 'share':
+          await _share();
         case 'radio':
           await startLokalRadio(context, artist: widget.artist);
       }

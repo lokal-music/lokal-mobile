@@ -1,6 +1,21 @@
 import 'package:flick/features/discovery/recommendation_match.dart'
     show leadArtist, recommendationKey, titleKey;
 import 'package:flick/models/song.dart';
+import 'package:flick/core/utils/artist_credits.dart' show splitArtistCredits;
+
+/// The desktop keeps the complete track credits. Where the album artist
+/// actually appears among a multi-artist credit, it identifies the release's
+/// lead without discarding Kendrick/SZA-style featured credits.
+String creditedLeadArtist(Song song) {
+  final artist = song.artist.trim();
+  final owner = song.albumArtist?.trim() ?? '';
+  if (owner.isNotEmpty &&
+      splitArtistCredits(artist).any(
+        (credit) => recommendationKey(credit) == recommendationKey(owner))) {
+    return leadArtist(owner);
+  }
+  return leadArtist(artist);
+}
 
 /// Visible library rows and a lookup for existing playlist IDs. An imported
 /// desktop song may be hidden in the library in favour of an equivalent local
@@ -37,7 +52,7 @@ PreferredLibrarySongIndex preferredLibrarySongIndex(List<Song> songs) {
   }
   String? recordingKey(Song song) {
     if (song.duration <= Duration.zero) return null;
-    final artist = recommendationKey(leadArtist(song.artist));
+    final artist = recommendationKey(creditedLeadArtist(song));
     final title = titleKey(song.title);
     if (artist.isEmpty || title.isEmpty) return null;
     return '$artist\u0000$title';

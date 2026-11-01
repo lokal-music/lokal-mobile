@@ -25,7 +25,12 @@ void main() {
 
   testWidgets('push and pop animate both foreground and previous page',
       (tester) async {
-    final primary = AnimationController(vsync: tester, value: 0);
+    final primary = AnimationController(
+      vsync: tester,
+      duration: LokalPageMotion.duration,
+      reverseDuration: LokalPageMotion.reverseDuration,
+      value: 0,
+    );
     final secondary = AnimationController(vsync: tester, value: 0);
     addTearDown(primary.dispose);
     addTearDown(secondary.dispose);
@@ -42,32 +47,75 @@ void main() {
       ),
     ));
 
-    List<double> offsets() => tester
+    double foreground() => tester
+        .widget<FractionalTranslation>(find.byType(FractionalTranslation).last)
+        .translation.dx;
+    List<double> background() => tester
         .widgetList<SlideTransition>(find.byType(SlideTransition))
         .map((transition) => transition.position.value.dx)
         .toList();
 
-    expect(offsets(), contains(closeTo(LokalPageMotion.enterOffset, .001)));
+    expect(foreground(), closeTo(LokalPageMotion.enterOffset, .001));
 
     primary.value = .5;
     secondary.value = .5;
     await tester.pump();
-    final middle = offsets();
-    expect(middle.any((value) => value > .01), isTrue,
+    expect(foreground(), greaterThan(.01),
         reason: 'incoming route should move in from the right');
-    expect(middle.any((value) => value < -.01), isTrue,
+    expect(background().any((value) => value < -.01), isTrue,
         reason: 'previous route should recede toward the left');
 
     primary.value = 1;
     secondary.value = 1;
     await tester.pump();
-    expect(offsets(), contains(closeTo(LokalPageMotion.behindOffset, .001)));
+    expect(background(), contains(closeTo(LokalPageMotion.behindOffset, .001)));
 
-    primary.value = 0;
-    secondary.value = 0;
+    primary.reverse(from: 1);
+    primary.value = .01;
+    secondary.value = .01;
     await tester.pump();
-    expect(offsets(), contains(closeTo(LokalPageMotion.enterOffset, .001)),
-        reason: 'Back must return the foreground along the reverse path');
+    expect(foreground(), greaterThan(.9),
+        reason: 'Back must carry the page to the far right, not 34% across');
+  });
+
+  testWidgets('interrupting push with Back preserves position', (tester) async {
+    final primary = AnimationController(
+      vsync: tester,
+      value: 0,
+      duration: LokalPageMotion.duration,
+      reverseDuration: LokalPageMotion.reverseDuration,
+    );
+    final secondary = AnimationController(vsync: tester, value: 0);
+    addTearDown(primary.dispose);
+    addTearDown(secondary.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => const LokalPageMotion().buildTransitions<void>(
+          MaterialPageRoute<void>(builder: (_) => const SizedBox()),
+          context, primary, secondary,
+          const SizedBox(key: Key('detail-midflight')),
+        ),
+      ),
+    ));
+    primary.forward(from: 0);
+    primary.value = .45;
+    await tester.pump();
+    final before = tester.widget<FractionalTranslation>(
+      find.byType(FractionalTranslation).last,
+    ).translation.dx;
+    primary.reverse(from: .45);
+    await tester.pump();
+    final after = tester.widget<FractionalTranslation>(
+      find.byType(FractionalTranslation).last,
+    ).translation.dx;
+    expect((after - before).abs(), lessThan(.001),
+      reason: 'Back cannot jump from short push to full-width exit');
+    primary.value = 0;
+    await tester.pump();
+    final end = tester.widget<FractionalTranslation>(
+      find.byType(FractionalTranslation).last,
+    ).translation.dx;
+    expect(end, closeTo(1.0, .001));
   });
 
   test('library routes retain Material system-Back and Hero support', () {
@@ -100,7 +148,7 @@ void main() {
     ));
 
     expect(find.byKey(const Key('opaque-scene')), findsOneWidget);
-    final innerMotion = find.byType(SlideTransition).last;
+    final innerMotion = find.byType(FractionalTranslation).last;
     expect(
       find.descendant(of: innerMotion, matching: find.byType(FadeTransition)),
       findsNothing,
@@ -111,9 +159,9 @@ void main() {
     );
     expect(find.byType(RepaintBoundary), findsWidgets);
 
-    // Both pages cover the viewport without a translucent gap: at each
-    // progress point, the previous route's right edge overlaps the arriving
-    // route's left edge. Reverse the progress for Back as well.
+    // Both pages cover the viewport without a translucent gap. On Back the
+    // foreground slides fully off the edge while the previous page is still
+    // visible underneath throughout the exit.
     for (var tick = 0; tick <= 100; tick++) {
       final progress = tick / 100;
       final previousRight = 1 +
@@ -121,6 +169,11 @@ void main() {
       final incomingLeft = LokalPageMotion.enterOffset * (1 - progress);
       expect(incomingLeft, lessThanOrEqualTo(previousRight),
           reason: 'No uncovered strip at push/pop progress $progress');
+      final backLeft = LokalPageMotion.exitOffset * progress;
+      final underneathRight = 1 +
+          LokalPageMotion.behindOffset * (1 - progress);
+      expect(backLeft, lessThanOrEqualTo(underneathRight),
+          reason: 'No black gap during full-width Back at $progress');
     }
   });
 

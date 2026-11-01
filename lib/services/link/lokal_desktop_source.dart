@@ -369,6 +369,7 @@ class LokalDesktopSource extends NetworkSourceService {
       entity.filePath = file.path;
       entity.title = track['title'] as String? ?? 'Unknown track';
       entity.artist = track['artist'] as String? ?? 'Unknown artist';
+      entity.albumArtist = (track['album_artist'] ?? track['albumArtist'] ?? existing?.albumArtist)?.toString();
       entity.album = track['album'] as String?;
       entity.durationMs = ((track['duration'] as num? ?? 0) * 1000).round();
       entity.fileType = extension;
@@ -399,11 +400,48 @@ class LokalDesktopSource extends NetworkSourceService {
     }
   }
 
+  // Coalesce concurrent requests for the same desktop song. A reconnect
+  // waits for an in-flight request rather than silently skipping its retry.
+  final Map<String, Future<bool>> _lyricsRequests = {};
+
+  Future<bool> syncPlayingDesktopLyrics(Song song) async {
+    if (song.sourceType != 'lokal' ||
+        song.remoteServerId == null || song.remoteId == null) return false;
+    final key = '${song.remoteServerId}:${song.remoteId}';
+    final pending = _lyricsRequests[key];
+    if (pending != null) return pending;
+
+    final operation = _fetchPlayingDesktopLyrics(song);
+    _lyricsRequests[key] = operation;
+    try {
+      return await operation;
+    } finally {
+      if (identical(_lyricsRequests[key], operation)) _lyricsRequests.remove(key);
+    }
+  }
+
+  Future<bool> _fetchPlayingDesktopLyrics(Song song) async {
+    try {
+      final server = await Database.networkServers.get(song.remoteServerId!);
+      final id = int.tryParse(song.id);
+      if (server == null || id == null) return false;
+      final row = await Database.songs.get(id);
+      if (row?.remoteId != song.remoteId ||
+          row?.remoteServerId != song.remoteServerId) return false;
+      await syncCopiedLyrics(server, copies: [row!], throwOnFailure: true);
+      return true;
+    } catch (_) {
+      // An offline desktop must not interrupt playback; caller may retry.
+      return false;
+    }
+  }
+
   Future<void> syncCopiedLyrics(
     NetworkServerEntity server, {
     List<SongEntity>? copies,
     bool Function()? stillCurrent,
     void Function(int, int)? onProgress,
+    bool throwOnFailure = false,
   }) async {
     final client = GracefulHttpClient();
     try {
@@ -436,12 +474,18 @@ class LokalDesktopSource extends NetworkSourceService {
             )
             .timeout(const Duration(seconds: 15));
         if (stillCurrent?.call() == false) return;
-        if (response.statusCode == 404 || response.statusCode == 403) return;
         if (response.statusCode != 200 ||
-            response.bodyBytes.length > 4 * 1024 * 1024)
+            response.bodyBytes.length > 4 * 1024 * 1024) {
+          if (throwOnFailure) throw StateError(
+            'Desktop lyrics request failed with HTTP ${response.statusCode}.',
+          );
           return;
+        }
         final body = jsonDecode(response.body);
-        if (body['items'] is! List) return;
+        if (body['items'] is! List) {
+          if (throwOnFailure) throw const FormatException('Invalid lyrics response.');
+          return;
+        }
         for (final item in (body['items'] as List).whereType<Map>()) {
           if (item['lyrics'] is! Map) continue;
           for (final row in page.where(
@@ -456,6 +500,7 @@ class LokalDesktopSource extends NetworkSourceService {
         onProgress?.call((offset + 50).clamp(0, rows.length), rows.length);
       }
     } catch (_) {
+      if (throwOnFailure) rethrow;
       /* Lyrics are optional; an older/offline PC must not fail file copy. */
     } finally {
       client.close();
@@ -731,6 +776,7 @@ class LokalDesktopSource extends NetworkSourceService {
       ..dateAdded = DateTime.now();
     entity.title = track['title']?.toString() ?? 'Unknown track';
     entity.artist = track['artist']?.toString() ?? 'Unknown artist';
+    entity.albumArtist = (track['album_artist'] ?? track['albumArtist'])?.toString();
     entity.album = track['album']?.toString();
     entity.genre = _genre(track) ?? entity.genre;
     entity.durationMs = ((track['duration'] as num? ?? 0) * 1000).round();

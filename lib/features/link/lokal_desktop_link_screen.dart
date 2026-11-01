@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/music_folder_service.dart';
+import '../../services/link/desktop_music_storage.dart';
 
 import '../../core/theme/lokal_tokens.dart';
 import '../../l10n/l10n.dart';
@@ -31,6 +33,8 @@ class _LokalDesktopLinkScreenState
       _theme = false,
       _sendDownloads = false;
   String? _error;
+  String? _copyFolderUri;
+  List<MusicFolder> _copyFolders = const [];
   @override
   void initState() {
     super.initState();
@@ -41,8 +45,11 @@ class _LokalDesktopLinkScreenState
     final prefs = await SharedPreferences.getInstance();
     final id =
         (await ref.read(lokalRemoteCredentialsStoreProvider).read())?.desktopId;
+    final folders = await MusicFolderService().getSavedFolders();
     if (mounted)
       setState(() {
+        _copyFolders = folders;
+        _copyFolderUri = prefs.getString(DesktopMusicStorage.destinationKey);
         _theme = prefs.getBool('lokal.link.$id.theme') ?? false;
         _sendDownloads =
             prefs.getBool('lokal.link.$id.send_downloads') ?? false;
@@ -201,6 +208,53 @@ class _LokalDesktopLinkScreenState
                 'Saves original song files under Lokal Desktop in your selected music folder. Existing private copies can be recovered here too. Nothing is deleted or replaced. Check again to retry unfinished files.',
               ),
               style: TextStyle(color: t.muted),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: ValueKey(_copyFolderUri),
+              initialValue: _copyFolderUri ?? '',
+              decoration: InputDecoration(
+                labelText: lokalText('Save PC files to'),
+                helperText: _copyFolderUri != null &&
+                    !_copyFolders.any((f) => f.uri == _copyFolderUri)
+                    ? lokalText('Selected folder is no longer available. Choose another.')
+                    : lokalText('Choose a folder in Library settings first.'),
+              ),
+              isExpanded: true,
+              items: [
+                DropdownMenuItem<String>(
+                  value: '',
+                  child: Text(lokalText('First available music folder')),
+                ),
+                if (_copyFolderUri != null &&
+                    !_copyFolders.any((f) => f.uri == _copyFolderUri))
+                  DropdownMenuItem<String>(
+                    value: _copyFolderUri!,
+                    child: Text(
+                      lokalText('Previously selected folder unavailable — choose another'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                for (final folder in _copyFolders)
+                  DropdownMenuItem<String>(
+                    value: folder.uri,
+                    child: Text(
+                      folder.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: progress.busy ? null : (uri) async {
+                final prefs = await SharedPreferences.getInstance();
+                if (uri == null || uri.isEmpty) {
+                  await prefs.remove(DesktopMusicStorage.destinationKey);
+                } else {
+                  await prefs.setString(DesktopMusicStorage.destinationKey, uri);
+                }
+                if (mounted) setState(() => _copyFolderUri = uri?.isEmpty == true ? null : uri);
+              },
             ),
             const SizedBox(height: 12),
             if (progress.phase == LinkCopyPhase.checking)
