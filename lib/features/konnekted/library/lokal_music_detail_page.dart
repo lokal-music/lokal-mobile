@@ -2,6 +2,7 @@ import 'package:flick/features/songs/widgets/song_actions_bottom_sheet.dart';
 import 'package:flick/features/library_jobs/artist_metadata.dart';
 
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -653,7 +654,45 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     );
     return Scaffold(
       backgroundColor: pageColor,
-      body: CustomScrollView(
+      body: Stack(
+        children: [
+          // The status-bar inset and elastic overscroll reveal this backing
+          // layer. Reuse Full Player's artwork-blur treatment, not a black void.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 240,
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                        child: heroArtwork,
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: .30),
+                              pageColor.withValues(alpha: .90),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: CustomScrollView(
         controller: _scrollController,
         primary: false,
         // Keep the natural top inset: offset zero is the resting position.
@@ -909,6 +948,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             ),
           SliverToBoxAdapter(
             child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
+          ),
+        ],
+            ),
           ),
         ],
       ),
