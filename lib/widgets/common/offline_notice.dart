@@ -85,9 +85,7 @@ class _OfflineNoticeState extends ConsumerState<OfflineNotice>
     if (next == ConnectivityStatus.online &&
         previous == ConnectivityStatus.offline) {
       _offlineHideTimer?.cancel();
-      final alreadyDismissed = _offlineDismissed;
       _offlineDismissed = false;
-      if (alreadyDismissed) return;
       _show();
       _backOnlineTimer?.cancel();
       setState(() => _showBackOnline = true);
