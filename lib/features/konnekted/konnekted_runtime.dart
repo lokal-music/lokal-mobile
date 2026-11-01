@@ -288,7 +288,10 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
   String? _lastDesktopLyricsTrack;
   void _onDesktopLyricsTrack() {
     final song = _player.currentSongNotifier.value;
-    if (song == null || song.sourceType != 'lokal') return;
+    if (song == null || song.sourceType != 'lokal') {
+      _lastDesktopLyricsTrack = null;
+      return;
+    }
     final key = '${song.remoteServerId}:${song.remoteId}';
     if (_lastDesktopLyricsTrack == key) return;
     _lastDesktopLyricsTrack = key;
