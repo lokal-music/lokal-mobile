@@ -50,6 +50,10 @@ Future<void> _bootstrapApp() async {
     initialAppearance.tokens.accent.toARGB32(),
   );
 
+  // Draw detail-page artwork behind Android's status bar instead of leaving
+  // an opaque system-colored strip above the hero. Individual pages continue
+  // to apply SafeArea to controls, not to their full-bleed backgrounds.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   await AppLog.instance.initializePersistence();
