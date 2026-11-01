@@ -16,7 +16,9 @@ class LokalDetailHeader extends StatelessWidget {
     required this.isArtist,
     required this.background,
     required this.onBack,
-    required this.onShare,
+    required this.onOnline,
+    required this.onlineEnabled,
+    this.onlineLoading = false,
     required this.onMore,
     this.artistCredit,
     this.metadata,
@@ -30,7 +32,9 @@ class LokalDetailHeader extends StatelessWidget {
   final String? artworkHeroTag;
   final bool isArtist;
   final Color background;
-  final VoidCallback onBack, onShare, onMore;
+  final VoidCallback onBack, onOnline, onMore;
+  final bool onlineEnabled;
+  final bool onlineLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -128,11 +132,34 @@ class LokalDetailHeader extends StatelessWidget {
                       onBack,
                     ),
                     const Spacer(),
-                    _headerButton(
-                      context,
-                      Icons.ios_share_rounded,
-                      l10n.share,
-                      onShare,
+                    // The catalogue is a single icon-only toggle in the
+                    // header. Its state is exposed to assistive technology,
+                    // not as a separate label or description on the page.
+                    LokalGlassButton(
+                      semanticLabel: onlineEnabled
+                          ? lokalText('Disable online catalogue')
+                          : lokalText('Enable online catalogue'),
+                      onPressed: onlineLoading ? null : onOnline,
+                      tint: onlineEnabled
+                          ? t.accent.withValues(alpha: .28)
+                          : Colors.black.withValues(alpha: .16),
+                      child: onlineLoading
+                          ? const SizedBox.square(
+                              dimension: 21,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              onlineEnabled
+                                  ? Icons.language_rounded
+                                  : Icons.language_outlined,
+                              color: onlineEnabled
+                                  ? Colors.white
+                                  : (isArtist ? Colors.white : t.text),
+                              size: 23,
+                            ),
                     ),
                     const SizedBox(width: 10),
                     _headerButton(
