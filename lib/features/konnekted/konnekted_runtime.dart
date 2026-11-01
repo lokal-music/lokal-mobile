@@ -1,4 +1,5 @@
 import 'package:flick/core/theme/lokal_appearance.dart';
+import 'package:flick/providers/automatic_update_preference.dart';
 import 'package:flick/features/updates/lokal_update_sheet.dart';
 import 'package:flick/services/library_job_notification.dart';
 import 'package:flick/features/spotify/spotify_likes_sync_service.dart';
@@ -103,6 +104,7 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
   String? _offeredUpdate;
 
   void _maybeShowUpdate() {
+    if (ref.read(automaticUpdatePreferenceProvider).value != true) return;
     final release = ref.read(updateCheckProvider).release;
     if (!mounted ||
         _backgrounded ||
