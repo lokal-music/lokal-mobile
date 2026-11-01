@@ -1,4 +1,5 @@
 import 'package:flick/features/updates/lokal_update_sheet.dart';
+import 'package:flick/providers/automatic_update_preference.dart';
 
 import 'dart:async';
 
@@ -67,6 +68,16 @@ List<LokalSettingsSection> aboutSettings(BuildContext context, WidgetRef ref) {
               error: (_, _) => lokalText('Unavailable'),
             ),
             style: LokalTheme.label(t, size: 12, color: t.text),
+          ),
+        ),
+        LokalSettingRow.toggle(
+          label: lokalText('Automatic update checks'),
+          description: lokalText(
+            'Check for new APK releases when online. Manual checks remain available.',
+          ),
+          value: ref.watch(automaticUpdatePreferenceProvider).value ?? true,
+          onChanged: (enabled) => unawaited(
+            ref.read(automaticUpdatePreferenceProvider.notifier).select(enabled),
           ),
         ),
         LokalSettingLink(
