@@ -243,9 +243,12 @@ class LokalDetailHeader extends StatelessWidget {
                       letterSpacing: -1.35,
                       height: 1.06,
                       color: fullBleed ? Colors.white : t.text,
-                      shadows: fullBleed
-                          ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
-                          : null,
+                      // Fixed artwork has no added shadow or darkening.
+                      shadows: fixedArtwork
+                          ? null
+                          : (isArtist
+                              ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
+                              : null),
                     ),
                   ),
                 ),
