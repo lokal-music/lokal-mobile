@@ -92,6 +92,9 @@ String? lokalAlbumRunningTime(List<Song?> rowSongs) {
 }
 
 class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
+  // Detail routes must open at pixel zero, even after an overscroll bounce or
+  // reopening the same artist/album. Never restore a previous scroll offset.
+  final _scrollController = ScrollController(keepScrollOffset: false);
   final _client = http.Client();
   final _cancel = Completer<void>();
   late final _progress = LokalStatusSnack(
@@ -157,6 +160,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (oldWidget.title != widget.title ||
         oldWidget.artist != widget.artist ||
         oldWidget.isArtist != widget.isArtist) {
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _cachedLibrary = null;
       _cachedLocal = null;
       _cachedRelated = null;
@@ -484,6 +488,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     ++_request;
     _cancel.complete();
     _client.close();
+    _scrollController.dispose();
     _progress.dispose();
     super.dispose();
   }
@@ -649,7 +654,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     return Scaffold(
       backgroundColor: pageColor,
       body: CustomScrollView(
-        key: PageStorageKey('detail:$_identity'),
+        controller: _scrollController,
+        primary: false,
         slivers: [
           SliverToBoxAdapter(
             child: LokalDetailHeader(
