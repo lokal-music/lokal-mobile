@@ -106,6 +106,15 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   String? _portrait, _error;
   Color? _dominant;
   int _request = 0;
+  // Heavy library grouping and reconciliation must not run during the first
+  // 320ms of an incoming page's route animation. Build the lightweight
+  // header and known tracks first, then populate related releases at rest.
+  bool _relatedReady = false;
+  Animation<double>? _entryAnimation;
+  List<Song>? _cachedLibrary;
+  List<Song>? _cachedLocal;
+  List<AlbumGroup>? _cachedRelated;
+  List<Song>? _relatedSource;
   String get _identity =>
       '${widget.isArtist ? 'artist' : 'album'}:${recommendationKey(widget.artist)}:${recommendationKey(widget.title)}';
   String get _consentKey => 'lokal.catalogue.online.$_identity';
@@ -114,6 +123,78 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   void initState() {
     super.initState();
     _restore();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    if (identical(routeAnimation, _entryAnimation) &&
+        (routeAnimation != null || _relatedReady)) return;
+    _entryAnimation?.removeStatusListener(_onEntryStatus);
+    _entryAnimation = routeAnimation;
+    if (routeAnimation == null ||
+        routeAnimation.status == AnimationStatus.completed) {
+      // Do not call setState during a build.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _completeEntry());
+    } else {
+      routeAnimation.addStatusListener(_onEntryStatus);
+    }
+  }
+
+  void _onEntryStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _completeEntry();
+  }
+
+  void _completeEntry() {
+    if (!mounted || _relatedReady) return;
+    _entryAnimation?.removeStatusListener(_onEntryStatus);
+    setState(() => _relatedReady = true);
+  }
+
+  @override
+  void didUpdateWidget(covariant LokalMusicDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title ||
+        oldWidget.artist != widget.artist ||
+        oldWidget.isArtist != widget.isArtist) {
+      _cachedLibrary = null;
+      _cachedLocal = null;
+      _cachedRelated = null;
+      _relatedSource = null;
+    }
+  }
+
+  List<Song> _localOnce(List<Song> library) {
+    if (identical(library, _cachedLibrary) && _cachedLocal != null) {
+      return _cachedLocal!;
+    }
+    _cachedLibrary = library;
+    _cachedRelated = null;
+    _relatedSource = null;
+    return _cachedLocal = _local(library);
+  }
+
+  List<AlbumGroup> _relatedOnce(List<Song> library, List<Song> local) {
+    if (identical(_relatedSource, library) && _cachedRelated != null) {
+      return _cachedRelated!;
+    }
+    final artist = recommendationKey(widget.artist);
+    // Album pages used to regroup/sort the ENTIRE library on every build,
+    // including every tint/online-state update, while the route was entering.
+    // Only this artist's releases are relevant to the UI.
+    final relevant = widget.isArtist
+        ? local
+        : library.where((song) =>
+            recommendationKey(song.albumArtist ?? song.artist) == artist).toList();
+    final albums = lokalAlbums(relevant)
+        .where((album) => widget.isArtist ||
+            recommendationKey(album.albumArtist) == artist)
+        .toList()
+      ..sort((a, b) => (b.songs.first.year ?? 0)
+          .compareTo(a.songs.first.year ?? 0));
+    _relatedSource = library;
+    return _cachedRelated = albums;
   }
 
   Future<void> _restore() async {
@@ -234,13 +315,20 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   }
 
   List<_Entry> _entries(List<Song> library, List<Song> local) {
-    final index = KonnektedLibraryIndex.of(library);
     final seen = <String>{};
+    final seenOwned = <String>{};
     final rows = <_Entry>[];
     if (_online)
       for (final track in _page?.tracks ?? <LokalCatalogueTrack>[]) {
         if (!seen.add(track.metadata.key)) continue;
-        rows.add(_Entry(track, index.match(track.metadata)));
+        // Even a cached online catalogue can return during the push.
+        // Delay the first global match-index construction until the page
+        // settles; entries are rematched in the next build.
+        final owned = _relatedReady
+            ? KonnektedLibraryIndex.of(library).match(track.metadata)
+            : null;
+        if (owned != null) seenOwned.add(owned.id);
+        rows.add(_Entry(track, owned));
       }
     final counts = ref.watch(lokalPlayCountsProvider).value ?? const {};
     final ordered = List<Song>.of(local)
@@ -260,8 +348,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         artworkUrl: song.albumArt ?? '',
         duration: song.duration,
       );
-      if (seen.add(metadata.key) &&
-          !rows.any((row) => row.owned?.id == song.id))
+      if (seen.add(metadata.key) && seenOwned.add(song.id))
         rows.add(
           _Entry(
             LokalCatalogueTrack(
@@ -392,6 +479,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
 
   @override
   void dispose() {
+    _entryAnimation?.removeStatusListener(_onEntryStatus);
     ++_request;
     _cancel.complete();
     _client.close();
@@ -404,26 +492,21 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     final t = context.lokal;
     final library =
         ref.watch(konnektedLibraryProvider).value ?? widget.localSongs;
-    final local = _local(library);
+    // Known local songs render immediately. Full-library reconciliation is
+    // deferred until entry completes, avoiding a multi-thousand-song scan in
+    // the middle of the incoming animation.
+    final local = !_relatedReady
+        ? widget.localSongs
+        : _localOnce(library);
     final rows = _entries(library, local);
     final year = local.where((song) => song.year != null).firstOrNull?.year ??
         widget.release?.year;
     final runningTime = lokalAlbumRunningTime(
       rows.map((row) => row.owned).toList(),
     );
-    final groups =
-        lokalAlbums(widget.isArtist ? local : library)
-            .where(
-              (album) =>
-                  widget.isArtist ||
-                  recommendationKey(album.albumArtist) ==
-                      recommendationKey(widget.artist),
-            )
-            .toList()
-          ..sort(
-            (a, b) =>
-                (b.songs.first.year ?? 0).compareTo(a.songs.first.year ?? 0),
-          );
+    final groups = _relatedReady
+        ? _relatedOnce(library, local)
+        : const <AlbumGroup>[];
     final albums = <LokalCatalogueAlbum>[];
     final albumIds = <String>{};
     final onlineTitles = <String>{};
@@ -517,6 +600,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         imagePath: heroImage,
         audioSourcePath: widget.isArtist ? null : localArtworkSong?.filePath,
         fit: BoxFit.cover,
+        // Use a bounded decode during the incoming animation, then restore
+        // the normal source resolution once the route has settled.
+        useThumbnail: !_relatedReady,
+        thumbnailWidth: !_relatedReady ? 896 : null,
         placeholder: ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
@@ -524,6 +611,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       heroArtwork = CachedImageWidget(
         audioSourcePath: local.first.filePath,
         fit: BoxFit.cover,
+        useThumbnail: !_relatedReady,
+        thumbnailWidth: !_relatedReady ? 896 : null,
         placeholder: ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
