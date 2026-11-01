@@ -3,79 +3,140 @@ import 'package:flutter/material.dart';
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/lokal_performance_scope.dart';
 
-/// Only two tab trees are present for the duration of a tab change.
+/// An edge-to-edge push between the four main tabs.
 ///
-/// A new tab can be expensive to build (large library, online catalogue).
-/// Dropping the old tab immediately shows an empty/black navigator before the
-/// new one has painted. This switcher keeps the old scene visible, stops its
-/// tickers and input, then disposes it after a short slide. It intentionally
-/// does NOT keep every destination alive like IndexedStack.
-class LokalNavigationSwitcher extends StatelessWidget {
+/// The former AnimatedSwitcher painted the new tab *over* the old one. Even
+/// with larger translations the old surface remained visibly ghosted behind
+/// the incoming content. This implementation gives both screens a single,
+/// synchronized position on a horizontal strip: their edges touch but NEVER
+/// overlap, so there is no translucent layer, crossfade or dark gap.
+///
+/// Only one outgoing tab exists for the duration of the animation. No tabs
+/// remain cached after completion.
+class LokalNavigationSwitcher extends StatefulWidget {
   const LokalNavigationSwitcher({
     super.key,
     required this.child,
     this.direction = 1,
   });
 
-  /// Supply a different [Key] for each destination, e.g. KeyedSubtree.
+  /// Each destination must carry its stable identity key.
   final Widget child;
 
-  /// 1: next tab to the right; -1: previous tab to the left.
+  /// +1 for moving to a tab on the right; -1 for a tab on the left.
   final int direction;
 
   static const enterDuration = Duration(milliseconds: 330);
-  static const exitDuration = Duration(milliseconds: 310);
-  // PixelPlayer-style directional navigation; both routes remain overlapping.
-  static const enterFraction = .48;
-  static const exitFraction = .22;
+  static const curve = Cubic(.2, 0, 0, 1);
+
+  @override
+  State<LokalNavigationSwitcher> createState() => _LokalNavigationSwitcherState();
+}
+
+class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _progress;
+  Widget? _outgoing;
+  int _travel = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _progress = AnimationController(
+      vsync: this,
+      duration: LokalNavigationSwitcher.enterDuration,
+      value: 1,
+    )..addStatusListener(_onAnimationStatus);
+  }
+
+  bool get _reduceMotion =>
+      MediaQuery.disableAnimationsOf(context) ||
+      AppConstants.animationNormal == Duration.zero ||
+      LokalPerformanceScope.of(context);
+
+  @override
+  void didUpdateWidget(covariant LokalNavigationSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.child.key == widget.child.key) return;
+
+    _travel = widget.direction < 0 ? -1 : 1;
+    if (_reduceMotion) {
+      _outgoing = null;
+      _progress.value = 1;
+    } else {
+      // Replacing a rapidly interrupted transition discards the older
+      // outgoing tree. At most two destination trees can be mounted.
+      _outgoing = oldWidget.child;
+      _progress.forward(from: 0);
+    }
+  }
+
+  void _onAnimationStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _outgoing != null && mounted) {
+      setState(() => _outgoing = null);
+    }
+  }
+
+  @override
+  void dispose() {
+    _progress
+      ..removeStatusListener(_onAnimationStatus)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context) ||
-        AppConstants.animationNormal == Duration.zero ||
-        LokalPerformanceScope.of(context);
+    final reduceMotion = _reduceMotion;
+    final animating = _outgoing != null && !reduceMotion;
+    final direction =
+        (Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0) *
+        _travel;
 
-    final direction = (Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0) *
-        (this.direction < 0 ? -1.0 : 1.0);
-
+    // Keep this exact Stack/AnimatedBuilder ancestry even when idle.
+    // Reparenting a KeyedSubtree from a bare child to a different wrapper
+    // on every navigation would dispose/recreate heavy Home state.
     return ClipRect(
-      child: AnimatedSwitcher(
-        duration: reduceMotion ? Duration.zero : enterDuration,
-        reverseDuration: reduceMotion ? Duration.zero : exitDuration,
-        switchInCurve: const Cubic(.2, 0, 0, 1),
-        switchOutCurve: const Cubic(.2, 0, 0, 1),
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          alignment: Alignment.center,
-          children: [
-            if (previousChildren.isNotEmpty) previousChildren.last,
-            ?currentChild,
-          ],
-        ),
-        transitionBuilder: (child, animation) => AnimatedBuilder(
-          animation: animation,
-          child: RepaintBoundary(child: child),
-          builder: (_, cachedChild) {
-            final leaving = animation.status == AnimationStatus.reverse;
-            return IgnorePointer(
-              ignoring: leaving,
-              child: TickerMode(
-                enabled: !leaving,
-                child: FractionalTranslation(
-                  // Unlike the old 20px overlap, this gives Home, Library
-                  // and Search a clear direction. Neither screen fades or
-                  // changes opacity; there is always visible overlap.
-                  translation: Offset(
-                    (leaving ? -exitFraction : enterFraction) *
-                        direction * (1 - animation.value),
-                    0,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (animating)
+            AnimatedBuilder(
+              key: ValueKey(_outgoing!.key),
+              animation: _progress,
+              child: _outgoing,
+              builder: (context, outgoing) {
+                final progress = LokalNavigationSwitcher.curve
+                    .transform(_progress.value);
+                return IgnorePointer(
+                  ignoring: true,
+                  child: ExcludeSemantics(
+                    child: TickerMode(
+                      enabled: false,
+                      child: FractionalTranslation(
+                        translation: Offset(-direction * progress, 0),
+                        child: RepaintBoundary(child: outgoing!),
+                      ),
+                    ),
                   ),
-                  child: cachedChild,
-                ),
-              ),
-            );
-          },
-        ),
-        child: child,
+                );
+              },
+            ),
+          AnimatedBuilder(
+            key: ValueKey(widget.child.key),
+            animation: _progress,
+            child: widget.child,
+            builder: (context, incoming) {
+              final progress = animating
+                  ? LokalNavigationSwitcher.curve.transform(_progress.value)
+                  : 1.0;
+              return FractionalTranslation(
+                translation: Offset(direction * (1 - progress), 0),
+                child: RepaintBoundary(child: incoming!),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
