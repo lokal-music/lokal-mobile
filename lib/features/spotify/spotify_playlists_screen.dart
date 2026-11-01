@@ -385,7 +385,8 @@ class _SpotifyPlaylistDetailState
     );
     final track = _tracks[index];
     final song = library.match(track) ?? discoveryPendingSong(track);
-    unawaited(SongActionsBottomSheet.show(context, song));
+    unawaited(SongActionsBottomSheet.show(
+      context, song, queueActions: false, hideMediaActions: true));
   }
 
   @override
