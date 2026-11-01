@@ -85,7 +85,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
   }
 
   void _select(KonnektedTab tab) {
-    LokalPerformanceAdvisor.noteNavigation();
+    LokalPerformanceAdvisor.noteNavigation(surface: 'tabs');
     AppHaptics.doublePulse();
     nestedNavigatorKey.currentState?.popUntil((route) => route.isFirst);
     if (_tab.value != tab) {
@@ -388,6 +388,9 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                     valueListenable: _tab,
                                     builder: (_, tab, _) => LokalNavigationSwitcher(
                                       direction: _tabMotionDirection,
+                                      // Keep only recently visited Home/Library/You
+                                      // views alive for smooth return entries.
+                                      retainVisitedTabs: true,
                                       child: KeyedSubtree(
                                         key: ValueKey(tab),
                                         child: switch (tab) {

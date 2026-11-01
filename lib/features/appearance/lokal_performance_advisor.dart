@@ -12,6 +12,15 @@ import '../../core/theme/lokal_appearance.dart';
 import '../../core/utils/app_log.dart';
 import '../../l10n/l10n.dart';
 
+
+/// Aggregated frame timing, recorded only during navigation. The entries are
+/// logged every 15 seconds and reset, never persisted between app sessions.
+class _NavigationFrameWindow {
+  int frames = 0;
+  int uiMisses = 0;
+  int rasterMisses = 0;
+}
+
 /// Distinguish CPU-heavy rasterization from UI work in release diagnostics.
 @visibleForTesting
 String lokalFrameBottleneck(int frames, int slowUi, int slowRaster) {
@@ -61,10 +70,14 @@ class LokalPerformanceAdvisor extends ConsumerStatefulWidget {
   // to the last interaction for M05 diagnostics without adding per-frame
   // platform-channel calls or logging any private content.
   static int _scrollUntilMicros = 0, _navigationUntilMicros = 0;
+  static String _navigationSurface = 'other';
   static void noteScroll() =>
       _scrollUntilMicros = DateTime.now().microsecondsSinceEpoch + 500000;
-  static void noteNavigation() =>
-      _navigationUntilMicros = DateTime.now().microsecondsSinceEpoch + 1000000;
+  static void noteNavigation({String surface = 'other'}) {
+    _navigationSurface = surface;
+    _navigationUntilMicros = DateTime.now().microsecondsSinceEpoch + 1000000;
+  }
+  static String get navigationSurface => _navigationSurface;
   static String get diagnosticActivity {
     final now = DateTime.now().microsecondsSinceEpoch;
     if (now < _scrollUntilMicros) return 'scroll';
@@ -89,6 +102,7 @@ class _LokalPerformanceAdvisorState
   int _maxUiMicros = 0, _maxRasterMicros = 0;
   int _scrollFrames = 0, _scrollRasterMisses = 0;
   int _navigationFrames = 0, _navigationRasterMisses = 0;
+  final Map<String, _NavigationFrameWindow> _navigationWindows = {};
   int? _previousCpuMs, _previousWallMs;
   @override
   void initState() {
@@ -140,6 +154,13 @@ class _LokalPerformanceAdvisorState
         case 'navigation':
           _navigationFrames++;
           if (slowRaster) _navigationRasterMisses++;
+          final window = _navigationWindows.putIfAbsent(
+            LokalPerformanceAdvisor.navigationSurface,
+            _NavigationFrameWindow.new,
+          );
+          window.frames++;
+          if (slowUi) window.uiMisses++;
+          if (slowRaster) window.rasterMisses++;
       }
       if (maySuggest) {
         _frames++;
@@ -157,6 +178,7 @@ class _LokalPerformanceAdvisorState
       _maxUiMicros = _maxRasterMicros = 0;
       _scrollFrames = _scrollRasterMisses = 0;
       _navigationFrames = _navigationRasterMisses = 0;
+      _navigationWindows.clear();
       return;
     }
     try {
@@ -184,6 +206,10 @@ class _LokalPerformanceAdvisorState
             ? 'ultra'
             : appearance.performanceMode ? 'performance' : 'normal';
         final rssMb = ProcessInfo.currentRss ~/ (1024 * 1024);
+        final navBySurface = _navigationWindows.entries.map(
+          (entry) => '${entry.key}:${entry.value.frames}/'
+              '${entry.value.uiMisses}/${entry.value.rasterMisses}',
+        ).join(',');
         AppLog.instance.add(
           '[perf] ${snapshot['manufacturer']} ${snapshot['model']} '
           'sdk=${snapshot['sdk']} impellerRequested=${snapshot['impellerRequested']} '
@@ -196,7 +222,8 @@ class _LokalPerformanceAdvisorState
           'mode=$mode rssMb=$rssMb '
           'surface=${LokalPerformanceAdvisor.diagnosticSurface} '
           'scrollRaster=$_scrollRasterMisses/$_scrollFrames '
-          'navigationRaster=$_navigationRasterMisses/$_navigationFrames',
+          'navigationRaster=$_navigationRasterMisses/$_navigationFrames '
+          'navFramesUiRaster=$navBySurface',
           source: LogSource.platform,
         );
       }
@@ -206,6 +233,7 @@ class _LokalPerformanceAdvisorState
       _maxUiMicros = _maxRasterMicros = 0;
       _scrollFrames = _scrollRasterMisses = 0;
       _navigationFrames = _navigationRasterMisses = 0;
+      _navigationWindows.clear();
     } catch (_) {
       // Perf telemetry must never interfere with startup or the audio path.
     }
@@ -269,6 +297,7 @@ class _LokalPerformanceAdvisorState
       _maxUiMicros = _maxRasterMicros = 0;
       _scrollFrames = _scrollRasterMisses = 0;
       _navigationFrames = _navigationRasterMisses = 0;
+      _navigationWindows.clear();
     }
   }
 

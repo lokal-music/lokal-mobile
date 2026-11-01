@@ -181,6 +181,49 @@ void main() {
     expect(inits['Search'], 1);
   });
 
+  testWidgets('bounded visited tabs are retained for instant re-entry',
+      (tester) async {
+    final inits = <String, int>{};
+    final disposals = <String, int>{};
+    Widget page(String tab) => MaterialApp(
+      home: LokalNavigationSwitcher(
+        retainVisitedTabs: true,
+        child: KeyedSubtree(
+          key: ValueKey(tab),
+          child: _TabLifecycleProbe(
+            name: tab,
+            onInit: (name) => inits[name] = (inits[name] ?? 0) + 1,
+            onDispose: (name) =>
+                disposals[name] = (disposals[name] ?? 0) + 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(page('Home'));
+    await tester.pumpWidget(page('Library'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(page('You'));
+    await tester.pumpAndSettle();
+    expect(inits, {'Home': 1, 'Library': 1, 'You': 1});
+    expect(disposals.values.every((count) => count == 0), isTrue);
+
+    await tester.pumpWidget(page('Home'));
+    await tester.pumpAndSettle();
+    expect(inits['Home'], 1,
+        reason: 'Re-entering a visited tab must not construct the screen again');
+    expect(inits['Library'], 1);
+    expect(inits['You'], 1);
+    expect(find.text('Home'), findsOneWidget);
+
+    // A fourth tab is lazy. Evict the least recently visited offscreen tree
+    // instead of retaining an unbounded number of heavyweight pages.
+    await tester.pumpWidget(page('Search'));
+    await tester.pumpAndSettle();
+    expect(inits['Search'], 1);
+    expect(disposals['Library'], 1);
+    expect(find.text('Search'), findsOneWidget);
+  });
+
   testWidgets('reduced motion removes transient tab immediately',
       (tester) async {
     AppConstants.setAnimationsEnabled(false);
