@@ -19,6 +19,7 @@ class LokalDetailHeader extends StatelessWidget {
     required this.onOnline,
     required this.onlineEnabled,
     this.onlineLoading = false,
+    this.onlineDisabled = false,
     required this.onMore,
     this.artistCredit,
     this.metadata,
@@ -35,6 +36,7 @@ class LokalDetailHeader extends StatelessWidget {
   final VoidCallback onBack, onOnline, onMore;
   final bool onlineEnabled;
   final bool onlineLoading;
+  final bool onlineDisabled;
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +141,7 @@ class LokalDetailHeader extends StatelessWidget {
                       semanticLabel: onlineEnabled
                           ? lokalText('Disable online catalogue')
                           : lokalText('Enable online catalogue'),
-                      onPressed: onlineLoading ? null : onOnline,
+                      onPressed: (onlineLoading || onlineDisabled) ? null : onOnline,
                       tint: onlineEnabled
                           ? t.accent.withValues(alpha: .28)
                           : Colors.black.withValues(alpha: .16),
@@ -148,16 +150,14 @@ class LokalDetailHeader extends StatelessWidget {
                               dimension: 21,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: isArtist ? Colors.white : t.text,
                               ),
                             )
                           : Icon(
                               onlineEnabled
                                   ? Icons.language_rounded
                                   : Icons.language_outlined,
-                              color: onlineEnabled
-                                  ? Colors.white
-                                  : (isArtist ? Colors.white : t.text),
+                              color: isArtist ? Colors.white : t.text,
                               size: 23,
                             ),
                     ),
