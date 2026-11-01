@@ -1,10 +1,8 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
-/// Stationary artwork shared by artist and album detail pages. A gentle
-/// artwork blur and alpha fade replace the hard boundary at the end of the
-/// header. There is no darkening overlay, tint or drop shadow.
+/// Stationary album/artist art that stays sharp, with only its *bottom edge*
+/// feathered into the theme background. Do not blur, tint, or darken the image:
+/// blurring the last third of the picture made the transition conspicuous.
 class LokalDetailFixedBackdrop extends StatelessWidget {
   const LokalDetailFixedBackdrop({
     super.key,
@@ -15,6 +13,20 @@ class LokalDetailFixedBackdrop extends StatelessWidget {
   final Widget artwork;
   final Color background;
 
+  /// Keep 92% of the picture fully intact; only the last 8% softens the seam.
+  /// The destination is the actual page theme color underneath the image.
+  @visibleForTesting
+  static const edgeFeather = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: [0, .92, 1],
+    colors: [
+      Colors.white,
+      Colors.white,
+      Colors.transparent,
+    ],
+  );
+
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: ClipRect(
@@ -24,41 +36,8 @@ class LokalDetailFixedBackdrop extends StatelessWidget {
           ColoredBox(color: background),
           ShaderMask(
             blendMode: BlendMode.dstIn,
-            shaderCallback: (bounds) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0, .56, .72, .88, 1],
-              colors: [
-                Colors.white,
-                Colors.white,
-                Color(0xEEFFFFFF),
-                Color(0x66FFFFFF),
-                Colors.transparent,
-              ],
-            ).createShader(bounds),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                RepaintBoundary(child: artwork),
-                // A stationary, clipped backdrop filter reuses the already
-                // decoded portrait/cover without a second network fetch or
-                // second artwork widget. The blend toward the page color
-                // hides the edge of the blurred portion.
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: FractionallySizedBox(
-                    heightFactor: .38,
-                    widthFactor: 1,
-                    child: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                        child: const SizedBox.expand(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            shaderCallback: edgeFeather.createShader,
+            child: RepaintBoundary(child: artwork),
           ),
         ],
       ),
