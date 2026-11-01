@@ -29,7 +29,6 @@ import 'package:flick/models/song.dart';
 import 'package:flick/providers/favorites_provider.dart';
 import 'package:flick/providers/player_provider.dart';
 import 'package:flick/providers/songs_provider.dart';
-import 'package:flick/services/color_extraction_service.dart';
 import 'package:flick/widgets/common/cached_image_widget.dart';
 import 'package:flick/widgets/lokal/lokal_glass.dart';
 import 'package:flick/widgets/lokal/lokal_choice_sheet.dart';
@@ -104,7 +103,6 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       _followed = false,
       _allSongs = false;
   String? _portrait, _error;
-  Color? _dominant;
   int _request = 0;
   // Heavy library grouping and reconciliation must not run during the first
   // 320ms of an incoming page's route animation. Build the lightweight
@@ -211,7 +209,6 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             .nameEqualTo(widget.artist, caseSensitive: false)
             .findFirst();
         if (mounted) setState(() => _portrait = row?.artPath);
-        if (row?.artPath?.isNotEmpty == true) unawaited(_tint(row!.artPath!));
       } catch (_) {
         /* A missing portrait never blocks opening the page. */
       }
@@ -220,36 +217,31 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (widget.initialOnline || prefs.getBool(_consentKey) == true) {
       setState(() => _online = true);
       _load();
-    } else if (!widget.isArtist) {
-      final path = widget.localSongs
-          .where((s) => s.albumArt?.isNotEmpty == true)
-          .firstOrNull
-          ?.albumArt;
-      if (path != null && !path.startsWith('http')) _tint(path);
     }
   }
 
-  Future<void> _tint(String path) async {
+  /// Persist resolved artist portraits for future visits without changing the
+  /// page's background color. A late palette extraction used to abruptly
+  /// recolor the entire screen while the route was still opening.
+  Future<void> _cacheOnlinePortrait(String path) async {
+    if (!widget.isArtist || !Database.isInitialized || !_online) return;
     try {
       if (path.startsWith('http')) {
-        if (!_online) return;
         path = (await DefaultCacheManager().getSingleFile(path)).path;
       }
-      final color = await ColorExtractionService().extractDominantColor(path);
-      if (widget.isArtist && Database.isInitialized && _online) {
-        final previous = await Database.artists
-            .filter()
-            .nameEqualTo(widget.artist, caseSensitive: false)
-            .findFirst();
-        if (previous?.artPath?.isNotEmpty != true) {
-          final artist = previous ?? (ArtistEntity()..name = widget.artist);
-          artist.artPath = path;
-          await Database.instance.writeTxn(() => Database.artists.put(artist));
-          if (mounted) setState(() => _portrait = path);
-        }
-      }
-      if (mounted && color != null) setState(() => _dominant = color);
-    } catch (_) {}
+      if (!mounted || !_online) return;
+      final previous = await Database.artists
+          .filter()
+          .nameEqualTo(widget.artist, caseSensitive: false)
+          .findFirst();
+      if (previous?.artPath?.isNotEmpty == true) return;
+      final artist = previous ?? (ArtistEntity()..name = widget.artist);
+      artist.artPath = path;
+      await Database.instance.writeTxn(() => Database.artists.put(artist));
+      if (mounted) setState(() => _portrait = path);
+    } catch (_) {
+      // Portrait persistence must never interrupt navigation.
+    }
   }
 
   Future<void> _setOnline(bool value) async {
@@ -288,7 +280,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       final image = widget.isArtist
           ? page.portrait
           : page.albums.firstOrNull?.artwork;
-      if (image?.isNotEmpty == true) unawaited(_tint(image!));
+      if (widget.isArtist && image?.isNotEmpty == true) {
+        unawaited(_cacheOnlinePortrait(image!));
+      }
     } catch (error) {
       if (mounted && request == _request)
         setState(() => _error = discoveryError(error));
@@ -571,7 +565,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               recommendationKey(album.title) != recommendationKey(widget.title),
         )
         .toList();
-    final pageColor = Color.lerp(t.bg, _dominant ?? t.bg, .2)!;
+    // Stable theme color is intentional: asynchronous palette extraction
+    // previously repainted the entire hero in a bright flash mid-transition.
+    final pageColor = t.bg;
     final show = widget.isArtist && !_allSongs ? rows.take(5).toList() : rows;
     final liked = ref.watch(favoritesProvider).value;
     final allLiked = local.isNotEmpty &&
@@ -586,6 +582,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         title: widget.title,
         artist: widget.artist,
         url: discoveryImageUrl(heroImage),
+        revealOnLoad: true,
         placeholder: localCover?.isNotEmpty == true
             ? CachedImageWidget(
                 imagePath: localCover,
@@ -600,19 +597,29 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         imagePath: heroImage,
         audioSourcePath: widget.isArtist ? null : localArtworkSong?.filePath,
         fit: BoxFit.cover,
-        // Use a bounded decode during the incoming animation, then restore
-        // the normal source resolution once the route has settled.
-        useThumbnail: !_relatedReady,
-        thumbnailWidth: !_relatedReady ? 896 : null,
-        placeholder: ColoredBox(color: pageColor),
+        revealOnLoad: true,
+        // Decoding at the *actual rendered size* stays stable across route
+        // completion. Switching cacheWidth at ~320ms caused a second decode
+        // and visible image flash on album/artist pages.
+        placeholder: widget.isArtist && localCover?.isNotEmpty == true
+            ? CachedImageWidget(
+                imagePath: localCover,
+                audioSourcePath: localArtworkSong?.filePath,
+                fit: BoxFit.cover,
+                revealOnLoad: true,
+                placeholder: ColoredBox(color: pageColor),
+              )
+            : ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
-    } else if (!widget.isArtist && local.isNotEmpty) {
+    } else if (local.isNotEmpty) {
+      // The artist's first known cover is preferable to a black/empty hero
+      // while an Isar portrait query or remote artist image is resolving.
       heroArtwork = CachedImageWidget(
-        audioSourcePath: local.first.filePath,
+        imagePath: localCover,
+        audioSourcePath: localArtworkSong?.filePath ?? local.first.filePath,
         fit: BoxFit.cover,
-        useThumbnail: !_relatedReady,
-        thumbnailWidth: !_relatedReady ? 896 : null,
+        revealOnLoad: true,
         placeholder: ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
