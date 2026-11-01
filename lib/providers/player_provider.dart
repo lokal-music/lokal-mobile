@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'lastfm_provider.dart';
 import 'lokal_remote_provider.dart';
+import 'package:flick/features/link/lokal_ghost_availability.dart';
 import '../models/lokal_remote_state.dart';
 import '../services/link/remote_playback_target.dart';
 import 'listenbrainz_provider.dart';
@@ -142,6 +143,8 @@ class PlayerNotifier extends Notifier<PlayerState> {
   @override
   PlayerState build() {
     _service = ref.watch(playerServiceProvider);
+    _service.linkedDesktopAvailable = (song) =>
+        ref.read(lokalSongAvailableProvider(song).future);
 
     // Sync initial state from service
     final initial = PlayerState(
