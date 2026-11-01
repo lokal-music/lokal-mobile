@@ -36,6 +36,7 @@ import 'package:flick/widgets/lokal/lokal_status_snack.dart';
 import 'package:flick/features/link/lokal_ghost_availability.dart';
 
 import 'artist_follow_store.dart';
+import 'lokal_artwork_reveal.dart';
 import 'lokal_detail_header.dart';
 import 'lokal_library_groups.dart';
 import 'lokal_library_kit.dart';
@@ -635,26 +636,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         ),
       );
     }
-    // Portraits and online artwork can resolve after the first rendered frame.
-    // Crossfade ONLY the artwork region; preserve the existing image in the
-    // stack during changes instead of flashing the full page or a black hero.
-    final stagedArtwork = AnimatedSwitcher(
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 260),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeOutCubic,
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        fit: StackFit.expand,
-        children: [
-          ...previousChildren,
-          ?currentChild,
-        ],
-      ),
-      child: SizedBox.expand(
-        key: ValueKey('${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}'),
-        child: heroArtwork,
-      ),
+    final stagedArtwork = LokalArtworkReveal(
+      identity: '${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}',
+      child: heroArtwork,
     );
     return Scaffold(
       backgroundColor: pageColor,
