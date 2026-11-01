@@ -656,9 +656,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       body: CustomScrollView(
         controller: _scrollController,
         primary: false,
-        // Disable ScrollView's implicit status-bar padding. The hero starts at
-        // the physical top of the screen; header buttons retain their SafeArea.
-        padding: EdgeInsets.zero,
+        // Keep the natural top inset: offset zero is the resting position.
+        // Pull-down overscroll may expose the artwork above it temporarily,
+        // but must bounce back when the gesture ends.
         slivers: [
           SliverToBoxAdapter(
             child: LokalDetailHeader(
