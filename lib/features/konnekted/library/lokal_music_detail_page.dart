@@ -656,6 +656,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       body: CustomScrollView(
         controller: _scrollController,
         primary: false,
+        // Disable ScrollView's implicit status-bar padding. The hero starts at
+        // the physical top of the screen; header buttons retain their SafeArea.
+        padding: EdgeInsets.zero,
         slivers: [
           SliverToBoxAdapter(
             child: LokalDetailHeader(
@@ -671,6 +674,43 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                       lokalSongCount(rows.length),
                       if (runningTime != null) runningTime,
                     ].join('  ·  '),
+              onArtworkTap: () {
+                final image = heroImage?.isNotEmpty == true ? heroImage : localCover;
+                if (image == null || image.isEmpty) return;
+                showDialog<void>(
+                  context: context,
+                  barrierColor: Colors.black,
+                  builder: (viewerContext) => Dialog.fullscreen(
+                    backgroundColor: Colors.black,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 5,
+                          child: Center(
+                            child: CachedImageWidget(
+                              imagePath: image,
+                              audioSourcePath: widget.isArtist
+                                  ? null : localArtworkSong?.filePath,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: MediaQuery.paddingOf(viewerContext).top + 12,
+                          left: 16,
+                          child: IconButton.filledTonal(
+                            tooltip: l10n.back,
+                            onPressed: () => Navigator.of(viewerContext).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
               onBack: () => Navigator.of(context).maybePop(),
               onlineEnabled: _online,
               onlineLoading: _loading,
