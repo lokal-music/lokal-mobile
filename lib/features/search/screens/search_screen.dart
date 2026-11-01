@@ -38,6 +38,7 @@ import 'package:flick/l10n/l10n.dart';
 import 'package:flick/widgets/lokal/lokal_swipe_to_queue.dart';
 import 'package:flick/services/catalogue_quality.dart';
 import 'package:flick/widgets/lokal/lokal_quality.dart';
+import 'package:flick/services/link/library_song_identity.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.footerFocusRequests});
@@ -944,6 +945,8 @@ class _SongTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final album = song.album;
     final suffix = subtitleSuffix;
+    final artistLabel = song.sourceType == 'lokal'
+        ? creditedLeadArtist(song) : song.artist;
     return LokalSwipeToQueue(
       song: song,
       child: ListTile(
@@ -1003,8 +1006,8 @@ class _SongTile extends ConsumerWidget {
           children: [
             Text(
               suffix != null && suffix.isNotEmpty
-                  ? '${song.artist}${album != null && album.isNotEmpty ? ' · $album' : ''} · $suffix'
-                  : '${song.artist}${album != null && album.isNotEmpty ? ' · $album' : ''}',
+                  ? '${artistLabel}${album != null && album.isNotEmpty ? ' · $album' : ''} · $suffix'
+                  : '${artistLabel}${album != null && album.isNotEmpty ? ' · $album' : ''}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
