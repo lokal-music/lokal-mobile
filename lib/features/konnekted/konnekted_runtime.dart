@@ -2,6 +2,8 @@ import 'package:flick/core/theme/lokal_appearance.dart';
 import 'package:flick/providers/automatic_update_preference.dart';
 import 'package:flick/features/updates/lokal_update_sheet.dart';
 import 'package:flick/services/library_job_notification.dart';
+import 'package:flick/services/link/lokal_desktop_source.dart';
+import 'package:flick/services/lyrics_playback_prefetch.dart';
 import 'package:flick/features/spotify/spotify_likes_sync_service.dart';
 import 'package:flick/services/queue_pre_resolver.dart';
 import 'package:flick/services/local_metadata_repair.dart';
@@ -170,6 +172,7 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
     _player.isNetworkLoadingNotifier.addListener(_updateIconBusy);
     _player.isNetworkLoadingNotifier.addListener(_onPreparationStatus);
     _player.currentSongNotifier.addListener(_onPreparationStatus);
+    _player.currentSongNotifier.addListener(_onDesktopLyricsTrack);
     _player.onlinePreparationTitleNotifier.addListener(_onPreparationStatus);
     _player.bufferedPositionNotifier.addListener(_onPreparationStatus);
     _player.durationNotifier.addListener(_onPreparationStatus);
@@ -282,6 +285,19 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
     });
   }
 
+  String? _lastDesktopLyricsTrack;
+  void _onDesktopLyricsTrack() {
+    final song = _player.currentSongNotifier.value;
+    if (song == null || song.sourceType != 'lokal') return;
+    final key = '${song.remoteServerId}:${song.remoteId}';
+    if (_lastDesktopLyricsTrack == key) return;
+    _lastDesktopLyricsTrack = key;
+    unawaited(() async {
+      await LokalDesktopSource.instance.syncPlayingDesktopLyrics(song);
+      LyricsPlaybackPrefetch.instance.invalidate(song);
+    }());
+  }
+
   void _onOnlinePlaybackError() {
     final message = _player.onlinePlaybackError.value;
     if (!mounted || message == null) return;
@@ -380,6 +396,7 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
     _player.isNetworkLoadingNotifier.removeListener(_updateIconBusy);
     _player.isNetworkLoadingNotifier.removeListener(_onPreparationStatus);
     _player.currentSongNotifier.removeListener(_onPreparationStatus);
+    _player.currentSongNotifier.removeListener(_onDesktopLyricsTrack);
     _player.onlinePreparationTitleNotifier.removeListener(_onPreparationStatus);
     _player.bufferedPositionNotifier.removeListener(_onPreparationStatus);
     _player.durationNotifier.removeListener(_onPreparationStatus);
