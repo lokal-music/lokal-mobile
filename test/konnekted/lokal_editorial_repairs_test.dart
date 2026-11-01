@@ -9,6 +9,7 @@ import 'package:flick/features/konnekted/konnekted_data.dart';
 import 'package:flick/features/konnekted/konnekted_dock.dart';
 import 'package:flick/features/konnekted/konnekted_shell.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_header.dart';
+import 'package:flick/features/konnekted/library/lokal_detail_fixed_backdrop.dart';
 import 'package:flick/features/konnekted/library/lokal_genres.dart';
 import 'package:flick/features/konnekted/library/lokal_music_detail_page.dart';
 import 'package:flick/features/konnekted/library/lokal_online_catalogue.dart';
@@ -228,7 +229,14 @@ void main() {
 
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(scaffold.backgroundColor, LokalTokens.resolve(LokalThemeId.dark).bg);
-    expect(scaffold.body, isA<CustomScrollView>());
+    // Artwork is fixed behind the scroll view; song/release slivers remain
+    // opaque so the image doesn't bleed through rows during scrolling.
+    expect(scaffold.body, isA<Stack>());
+    expect(find.byType(LokalDetailFixedBackdrop), findsOneWidget);
+    expect(
+      find.byType(DecoratedSliver),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
