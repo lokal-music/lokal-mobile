@@ -752,6 +752,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               onSeeAll: widget.isArtist && rows.length > 5
                   ? () => setState(() => _allSongs = !_allSongs)
                   : null,
+              actionLabel: widget.isArtist && _allSongs
+                  ? lokalText('Hide')
+                  : null,
             ),
           ),
           if (show.isEmpty && !_loading)
