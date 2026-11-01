@@ -56,4 +56,54 @@ void main() {
     expect(find.text('first'), findsNothing);
     expect(find.text('second'), findsOneWidget);
   });
+
+  testWidgets('rapid switches mount only the current and latest outgoing tab', (
+    tester,
+  ) async {
+    Widget page(String tab) => MaterialApp(
+      home: LokalNavigationSwitcher(child: Text(tab, key: ValueKey(tab))),
+    );
+
+    await tester.pumpWidget(page('first'));
+    await tester.pumpWidget(page('second'));
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.pumpWidget(page('third'));
+    expect(find.text('first'), findsNothing);
+    expect(find.text('second'), findsOneWidget);
+    expect(find.text('third'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('second'), findsNothing);
+    expect(find.text('third'), findsOneWidget);
+  });
+
+  for (final direction in TextDirection.values) {
+    testWidgets('tab motion follows $direction', (tester) async {
+      Widget page(String tab) => MaterialApp(
+        home: Directionality(
+          textDirection: direction,
+          child: LokalNavigationSwitcher(
+            child: SizedBox.expand(
+              key: ValueKey(tab),
+              child: Center(child: Text(tab)),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(page('old'));
+      final center = tester.getCenter(find.text('old')).dx;
+      await tester.pumpWidget(page('new'));
+      await tester.pump(const Duration(milliseconds: 50));
+      final sign = direction == TextDirection.ltr ? 1 : -1;
+      expect(
+        (tester.getCenter(find.text('new')).dx - center) * sign,
+        greaterThan(0),
+      );
+      expect(
+        (tester.getCenter(find.text('old')).dx - center) * sign,
+        lessThan(0),
+      );
+      await tester.pumpAndSettle();
+    });
+  }
 }
