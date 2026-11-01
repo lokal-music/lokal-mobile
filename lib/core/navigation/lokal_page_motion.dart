@@ -32,6 +32,9 @@ class LokalPageMotion extends PageTransitionsBuilder {
   static const duration = Duration(milliseconds: 320);
   static const reverseDuration = Duration(milliseconds: 285);
   static const enterOffset = .34;
+  // A pop must slide until the outgoing page is entirely past the edge,
+  // rather than removing it after the same short push distance.
+  static const exitOffset = 1.0;
   static const behindOffset = -.10;
   static const enterCurve = Cubic(.2, 0, 0, 1);
   static const backCurve = Cubic(.23, .65, .3, 1);
@@ -55,25 +58,32 @@ class LokalPageMotion extends PageTransitionsBuilder {
         ? -1.0
         : 1.0;
 
-    final foregroundProgress = CurvedAnimation(
-      parent: animation,
-      curve: enterCurve,
-      reverseCurve: backCurve,
-    );
     final backgroundProgress = CurvedAnimation(
       parent: secondaryAnimation,
       curve: enterCurve,
       reverseCurve: backCurve,
     );
 
-    final incoming = SlideTransition(
-      position: Tween<Offset>(
-        begin: Offset(enterOffset * direction, 0),
-        end: Offset.zero,
-      ).animate(foregroundProgress),
-      // Paint the content once, then move the layer. Artwork-heavy artist,
-      // album and Search screens should not reraster on each animation tick.
+    // This builder *must* read animation.status on every frame. A tween
+    // selected only in buildTransitions would be frozen at push time and pop
+    // would still stop after 34% of the viewport, producing the exact
+    // half-dismiss seen in the device recording.
+    final incoming = AnimatedBuilder(
+      animation: animation,
       child: RepaintBoundary(child: child),
+      builder: (context, paintedPage) {
+        final returning = animation.status == AnimationStatus.reverse;
+        final curved = (returning ? backCurve : enterCurve)
+            .transform(animation.value.clamp(0.0, 1.0));
+        return FractionalTranslation(
+          translation: Offset(
+            (returning ? exitOffset : enterOffset) *
+                direction * (1 - curved),
+            0,
+          ),
+          child: paintedPage!,
+        );
+      },
     );
 
     // Ultra Performance Mode avoids translating/rasterizing the old page at
