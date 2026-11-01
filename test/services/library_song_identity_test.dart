@@ -60,6 +60,16 @@ void main() {
   );
 
 
+  test('album owner must be a whole credited name, not a substring', () {
+    final pc = song('pc', 'Track', 'lokal://1/track',
+      artist: 'Annabelle, Bob', albumArtist: 'Anna', source: 'lokal');
+    expect(creditedLeadArtist(pc), 'Annabelle');
+    final phone = song('phone', 'Track', '/music/track.flac',
+      artist: 'Anna', albumArtist: 'Anna');
+    final index = preferredLibrarySongIndex([pc, phone]);
+    expect(index.visible.map((s) => s.id), ['pc', 'phone']);
+  });
+
   test('history ghosts stay hidden, desktop-only songs stay available', () {
     final local = song('1', 'Local', '/music/local.flac');
     final duplicate = song('2', 'Local', 'lokal://1/2', source: 'lokal');
