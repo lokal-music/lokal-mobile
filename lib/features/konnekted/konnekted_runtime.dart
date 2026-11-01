@@ -1,5 +1,6 @@
 import 'package:flick/core/theme/lokal_appearance.dart';
 import 'package:flick/providers/automatic_update_preference.dart';
+import 'package:flick/providers/connectivity_provider.dart';
 import 'package:flick/features/updates/lokal_update_sheet.dart';
 import 'package:flick/services/library_job_notification.dart';
 import 'package:flick/services/link/lokal_desktop_source.dart';
@@ -186,6 +187,16 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
     ref.listenManual(updateCheckProvider, (_, next) {
       if (next.updateAvailable) _maybeShowUpdate();
     });
+    ref.listenManual<ConnectivityStatus>(
+      connectivityProvider,
+      (previous, next) {
+        if (previous != ConnectivityStatus.online &&
+            next == ConnectivityStatus.online) {
+          _lastDesktopLyricsTrack = null;
+          _onDesktopLyricsTrack();
+        }
+      },
+    );
     ref.read(updateCheckProvider.notifier);
     _widgetSync = installWidgetSync(ref);
     _widgetIntents = WidgetIntentHandler(
