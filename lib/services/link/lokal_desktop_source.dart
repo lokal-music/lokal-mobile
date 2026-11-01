@@ -417,6 +417,8 @@ class LokalDesktopSource extends NetworkSourceService {
       if (row?.remoteId != song.remoteId ||
           row?.remoteServerId != song.remoteServerId) return;
       await syncCopiedLyrics(server, copies: [row!]);
+    } catch (_) {
+      // Unavailable desktops are expected when away from the LAN.
     } finally {
       // A later attempt can retry if the desktop was offline.
       _lyricsRequests.remove(key);
