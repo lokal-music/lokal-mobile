@@ -474,6 +474,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
 
   @override
   void dispose() {
+    _entryAnimation?.removeStatusListener(_onEntryStatus);
     ++_request;
     _cancel.complete();
     _client.close();
@@ -594,6 +595,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         imagePath: heroImage,
         audioSourcePath: widget.isArtist ? null : localArtworkSong?.filePath,
         fit: BoxFit.cover,
+        // Use a bounded decode during the incoming animation, then restore
+        // the normal source resolution once the route has settled.
+        useThumbnail: !_relatedReady,
+        thumbnailWidth: !_relatedReady ? 896 : null,
         placeholder: ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
@@ -601,6 +606,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       heroArtwork = CachedImageWidget(
         audioSourcePath: local.first.filePath,
         fit: BoxFit.cover,
+        useThumbnail: !_relatedReady,
+        thumbnailWidth: !_relatedReady ? 896 : null,
         placeholder: ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
