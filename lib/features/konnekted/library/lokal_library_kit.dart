@@ -2,6 +2,7 @@ import 'package:flick/widgets/lokal/lokal_quality.dart';
 import 'package:flick/widgets/lokal/lokal_page_geometry.dart';
 
 import '../../link/lokal_ghost_availability.dart';
+import 'package:flick/services/link/library_song_identity.dart';
 
 import 'dart:async';
 
@@ -462,7 +463,8 @@ class LokalTrackRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.lokal;
-    final second = subtitle ?? song.artist;
+    final second = subtitle ??
+        (song.sourceType == 'lokal' ? creditedLeadArtist(song) : song.artist);
     final available =
         song.sourceType != 'lokal' ||
         (ref.watch(lokalSongAvailableProvider(song)).value ?? false);
