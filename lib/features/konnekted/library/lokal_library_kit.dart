@@ -467,7 +467,13 @@ class LokalTrackRow extends ConsumerWidget {
   final Widget? trailing;
 
   void _actions(BuildContext context) => unawaited(
-    SongActionsBottomSheet.show(context, song, onRemoveFromPlaylist: onRemove),
+    SongActionsBottomSheet.show(
+      context,
+      song,
+      onRemoveFromPlaylist: onRemove,
+      queueActions: false,
+      hideMediaActions: true,
+    ),
   );
 
   @override
