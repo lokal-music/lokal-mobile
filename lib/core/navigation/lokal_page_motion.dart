@@ -12,7 +12,6 @@ bool systemRequestsReducedMotion(BuildContext context) {
       accessibility.reduceMotion;
 }
 
-
 /// A single, opacity-free shared-axis motion for all ordinary Lokal routes.
 ///
 /// The old implementation nested Flutter's Android predictive-back builder
