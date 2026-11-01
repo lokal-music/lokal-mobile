@@ -39,6 +39,32 @@ void main() {
     expect(toggles, 2);
   });
 
+  testWidgets('light album header retains contrast and respects busy state',
+      (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(
+      theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.light)),
+      home: Scaffold(
+        body: LokalDetailHeader(
+          title: 'Album',
+          artwork: const SizedBox.expand(),
+          isArtist: false,
+          background: Colors.white,
+          onBack: () {},
+          onOnline: () => taps++,
+          onlineEnabled: true,
+          onlineDisabled: true,
+          onMore: () {},
+        ),
+      ),
+    ));
+    final enabledIcon = tester.widget<Icon>(find.byIcon(Icons.language_rounded));
+    expect(enabledIcon.color, LokalTokens.resolve(LokalThemeId.light).text);
+    await tester.tap(find.byIcon(Icons.language_rounded));
+    expect(taps, 0, reason: 'A download must not allow changing catalogue mode');
+    expect(find.text('Online catalogue'), findsNothing);
+  });
+
   testWidgets('catalogue icon shows loading state without additional text',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
