@@ -76,18 +76,24 @@ class LokalDetailHeader extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               child: RepaintBoundary(child: artwork),
             ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0, .3, .63, 1],
-                  colors: [
-                    Colors.black.withValues(alpha: .50),
-                    Colors.transparent,
-                    artistScrim.withValues(alpha: .75),
-                    artistScrim,
-                  ],
+            // A full-size decoration sits *above* the portrait. Without
+            // IgnorePointer, its RenderDecoratedBox wins hit testing and
+            // consumes taps before the artwork's GestureDetector can open
+            // the fullscreen viewer.
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, .3, .63, 1],
+                    colors: [
+                      Colors.black.withValues(alpha: .50),
+                      Colors.transparent,
+                      artistScrim.withValues(alpha: .75),
+                      artistScrim,
+                    ],
+                  ),
                 ),
               ),
             ),
