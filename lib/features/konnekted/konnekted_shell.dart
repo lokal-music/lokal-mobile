@@ -7,8 +7,8 @@ import 'dart:async';
 
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/navigation/root_navigator.dart';
+import 'package:flick/core/navigation/lokal_navigation_switcher.dart';
 import 'package:flick/core/navigation/lokal_page_motion.dart';
-import 'package:flick/core/theme/lokal_performance_scope.dart';
 import 'package:flick/core/theme/adaptive_color_provider.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/core/utils/app_haptics.dart';
@@ -380,53 +380,33 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                   bucket: _storage,
                                   child: ValueListenableBuilder<KonnektedTab>(
                                     valueListenable: _tab,
-                                    builder: (_, tab, _) => TweenAnimationBuilder<double>(
-                                      key: ValueKey(tab),
-                                      tween: Tween<double>(begin: 0, end: 1),
-                                      duration: MediaQuery.disableAnimationsOf(context) ||
-                                              AppConstants.animationNormal == Duration.zero ||
-                                              LokalPerformanceScope.of(context)
-                                          ? Duration.zero
-                                          : const Duration(milliseconds: 240),
-                                      curve: const Cubic(.2, 0, 0, 1),
-                                      // Only the incoming destination is
-                                      // animated. Unlike AnimatedSwitcher,
-                                      // inactive tab trees aren't retained.
-                                      builder: (_, value, child) =>
-                                          Transform.translate(
-                                        offset: Offset(16 * (1 - value), 0),
-                                        child: child,
-                                      ),
+                                    builder: (_, tab, _) => LokalNavigationSwitcher(
                                       child: KeyedSubtree(
                                         key: ValueKey(tab),
-                                      // No IndexedStack/PageView: inactive native-heavy
-                                      // screens are never eagerly created or retained.
-                                      child: switch (tab) {
-                                        KonnektedTab.listen => KonnektedHome(
-                                          onNavigate: _navigate,
-                                          onPlay: _play,
-                                        ),
-                                        KonnektedTab.explore =>
-                                          SearchScreen(
+                                        child: switch (tab) {
+                                          KonnektedTab.listen => KonnektedHome(
+                                            onNavigate: _navigate,
+                                            onPlay: _play,
+                                          ),
+                                          KonnektedTab.explore => SearchScreen(
                                             footerFocusRequests: _searchFocusRequests,
                                           ),
-                                        KonnektedTab.library =>
-                                          KonnektedLibrary(
+                                          KonnektedTab.library => KonnektedLibrary(
                                             onNavigate: _navigate,
                                           ),
-                                        KonnektedTab.settings => KonnektedYou(
-                                          onNavigate: _navigate,
-                                        ),
-                                      },
+                                          KonnektedTab.settings => KonnektedYou(
+                                            onNavigate: _navigate,
+                                          ),
+                                        },
+                                      ),
                                     ),
-                                    ),
-                                  ),
                                 ),
                               ),
                             ),
                             ),
                           ),
                         ),
+                      ),
                       ),
                       Positioned(
                         left: 0,

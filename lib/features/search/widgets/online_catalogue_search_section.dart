@@ -1,6 +1,6 @@
+import 'package:flick/core/navigation/lokal_page_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flick/l10n/l10n.dart';
-import 'package:flick/core/constants/app_constants.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/services/global_catalogue_source.dart';
@@ -64,17 +64,7 @@ class _OnlineCatalogueSearchSectionState
   }
 
   Future<void> _open(Widget page) => Navigator.of(context).push<void>(
-    PageRouteBuilder<void>(
-      transitionDuration: AppConstants.animationNormal,
-      reverseTransitionDuration: AppConstants.animationNormal,
-      pageBuilder: (_, _, _) => page,
-      transitionsBuilder: (_, animation, _, child) => SlideTransition(
-        position: Tween(begin: const Offset(.08, 0), end: Offset.zero).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
-        ),
-        child: FadeTransition(opacity: animation, child: child),
-      ),
-    ),
+    LokalPageRoute<void>(builder: (_) => page),
   );
 
   @override
