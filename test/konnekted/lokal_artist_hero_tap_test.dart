@@ -59,11 +59,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('overscroll artwork fills the viewport without a black fade-out',
+  testWidgets('pull-down backing ends with the hero, not under album and songs',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    const height = 439.0;
 
     await tester.pumpWidget(
       const MaterialApp(
@@ -71,6 +72,8 @@ void main() {
           body: Stack(
             children: [
               LokalDetailOverscrollBackdrop(
+                height: height,
+                background: Colors.black,
                 artwork: ColoredBox(
                   key: ValueKey('wallpaper'),
                   color: Colors.brown,
@@ -83,25 +86,73 @@ void main() {
     );
     await tester.pump();
 
-    // A pull-down can expose more than the old 240dp backing. It must still
-    // be artwork, not the uncovered black Scaffold or a 90% opaque scrim.
+    // The previous PR painted this artwork behind the entire viewport,
+    // including Play and featured releases. It must end at the hero boundary.
     final artSize = tester.getSize(find.byKey(const ValueKey('wallpaper')));
     expect(artSize.width, 390);
-    expect(artSize.height, 844);
+    expect(artSize.height, height);
+    final backing = tester.widget<Positioned>(
+      find.descendant(
+        of: find.byType(LokalDetailOverscrollBackdrop),
+        matching: find.byType(Positioned),
+      ).first,
+    );
+    expect(backing.top, 0);
+    expect(backing.height, height);
 
-    final scrims = tester.widgetList<DecoratedBox>(
+    final gradients = tester.widgetList<DecoratedBox>(
       find.descendant(
         of: find.byType(LokalDetailOverscrollBackdrop),
         matching: find.byType(DecoratedBox),
       ),
-    );
-    final gradients = scrims.map((box) => box.decoration)
+    ).map((box) => box.decoration)
         .whereType<BoxDecoration>()
         .map((decoration) => decoration.gradient)
         .whereType<LinearGradient>();
-    expect(gradients, isNotEmpty);
-    final alphaAtBottom = gradients.last.colors.last.a;
-    expect(alphaAtBottom, lessThan(.5));
+    expect(gradients.last.colors.last, Colors.black);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('artist portrait darkens gently until the very last edge',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
+        home: Scaffold(
+          body: LokalDetailHeader(
+            title: 'Artist',
+            artwork: const ColoredBox(color: Colors.brown),
+            isArtist: true,
+            background: Colors.black,
+            onArtworkTap: () {},
+            onBack: () {},
+            onMore: () {},
+            onOnline: () {},
+            onlineEnabled: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final gradients = tester.widgetList<DecoratedBox>(
+      find.descendant(
+        of: find.byType(LokalDetailHeader),
+        matching: find.byType(DecoratedBox),
+      ),
+    ).map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .map((d) => d.gradient)
+        .whereType<LinearGradient>();
+    final scrim = gradients.singleWhere((g) => g.colors.length == 4);
+    // The old scrim had an already 75%-opaque black stop at 63% of
+    // portrait height, making the face and shoulders unnaturally dark.
+    expect(scrim.stops, [0, .68, .93, 1]);
+    expect(scrim.colors.first.a, lessThan(.15));
+    expect(scrim.colors[2].a, lessThan(.20));
+    expect(scrim.colors.last.a, lessThan(1));
     expect(tester.takeException(), isNull);
   });
 

@@ -37,7 +37,6 @@ import 'package:flick/features/link/lokal_ghost_availability.dart';
 import 'artist_follow_store.dart';
 import 'lokal_artwork_reveal.dart';
 import 'lokal_detail_header.dart';
-import 'artist_portrait_auto_crop.dart';
 import 'lokal_library_groups.dart';
 import 'lokal_library_kit.dart';
 import 'lokal_online_catalogue.dart';
@@ -649,17 +648,23 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     }
     final stagedArtwork = LokalArtworkReveal(
       identity: '${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}',
-      child: widget.isArtist
-          ? ArtistPortraitAutoCrop(imagePath: heroImage ?? localCover, fallback: heroArtwork)
-          : heroArtwork,
+      // A full-bleed BoxFit.cover already fits square/non-square portraits
+      // without adding bars. Re-decoding each file for automatic cropping
+      // was redundant for verified editorial images and could cause jank.
+      child: heroArtwork,
     );
     return Scaffold(
       backgroundColor: pageColor,
       body: Stack(
         children: [
-          // Pull-to-stretch exposes the wallpaper behind the sliver. Reuse a
-          // full-viewport blurred hero without the old fixed-height black seam.
-          LokalDetailOverscrollBackdrop(artwork: heroArtwork),
+          // Only the pulled-down area above an artist hero reveals blurred
+          // artwork. No wallpaper under Play, releases or songs.
+          if (widget.isArtist)
+            LokalDetailOverscrollBackdrop(
+              artwork: heroArtwork,
+              height: LokalDetailHeader.artistHeight(context),
+              background: pageColor,
+            ),
           Positioned.fill(
             child: CustomScrollView(
         controller: _scrollController,

@@ -41,19 +41,24 @@ class LokalDetailHeader extends StatelessWidget {
   final bool onlineLoading;
   final bool onlineDisabled;
 
+  /// Match the pull-down artwork to the foreground artist header's extent.
+  static double artistHeight(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8);
+    return (size.height * .52 + (scale - 1) * 90)
+        .clamp(350.0, 580.0).toDouble();
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.lokal;
     final size = MediaQuery.sizeOf(context);
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8);
     final topInset = MediaQuery.paddingOf(context).top;
-    final artistScrim = t.isLight
-        ? Color.lerp(background, Colors.black, .86)!
-        : background;
     final artSize = (size.width * (size.width > 620 ? .36 : .63))
         .clamp(184.0, 314.0);
     final heroHeight = isArtist
-        ? (size.height * .52 + (scale - 1) * 90).clamp(350.0, 580.0)
+        ? artistHeight(context)
         : artSize + 268 + topInset + (scale - 1) * 230;
 
     return SizedBox(
@@ -85,15 +90,18 @@ class LokalDetailHeader extends StatelessWidget {
             IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
+                  // Keep the portrait visible. The previous 75%-black
+                  // scrim began at 63% height and its fully opaque tail
+                  // created the solid dark band in the screenshot.
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0, .3, .63, 1],
+                    stops: const [0, .68, .93, 1],
                     colors: [
-                      Colors.black.withValues(alpha: .50),
+                      Colors.black.withValues(alpha: .10),
                       Colors.transparent,
-                      artistScrim.withValues(alpha: .75),
-                      artistScrim,
+                      Colors.black.withValues(alpha: .15),
+                      background.withValues(alpha: .88),
                     ],
                   ),
                 ),
@@ -226,7 +234,7 @@ class LokalDetailHeader extends StatelessWidget {
                       height: 1.06,
                       color: isArtist ? Colors.white : t.text,
                       shadows: isArtist
-                          ? const [Shadow(color: Colors.black54, blurRadius: 18)]
+                          ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
                           : null,
                     ),
                   ),
@@ -270,24 +278,26 @@ class LokalDetailHeader extends StatelessWidget {
 }
 
 
-/// Artwork visible *behind* the scrollable detail page during pull-down.
-///
-/// The previous backing was only 240dp tall and ended in a 90%-opaque page
-/// colour. Pulling an artist page down exposed that synthetic near-black tail
-/// between the blurred wallpaper and the full-resolution portrait. It looked
-/// like an identical letterbox band on every artist, but was not image data.
-///
-/// Cover the whole viewport, keep the same unobstructed photograph beneath a
-/// light constant scrim, and overscan before blurring to avoid black sampling
-/// at its edges. This layer is never interactive and is isolated from scrolling
-/// repaints. The foreground artist hero still uses BoxFit.cover.
+/// Artwork visible on a downward pull, only above the artist header.
+/// The rest of the detail page is its usual clean, opaque surface.
 class LokalDetailOverscrollBackdrop extends StatelessWidget {
-  const LokalDetailOverscrollBackdrop({super.key, required this.artwork});
+  const LokalDetailOverscrollBackdrop({
+    super.key,
+    required this.artwork,
+    required this.height,
+    required this.background,
+  });
 
   final Widget artwork;
+  final double height;
+  final Color background;
 
   @override
-  Widget build(BuildContext context) => Positioned.fill(
+  Widget build(BuildContext context) => Positioned(
+    left: 0,
+    right: 0,
+    top: 0,
+    height: height,
     child: IgnorePointer(
       child: RepaintBoundary(
         child: ClipRect(
@@ -295,23 +305,22 @@ class LokalDetailOverscrollBackdrop extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Transform.scale(
-                scale: 1.25,
+                scale: 1.12,
                 child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                   child: artwork,
                 ),
               ),
-              // Do not fade to pageColor here. The user can overscroll farther
-              // than the old fixed-height scrim, revealing a black horizontal
-              // strip that has nothing to do with the source image.
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
+                    stops: const [0, .70, 1],
                     colors: [
-                      Colors.black.withValues(alpha: .20),
-                      Colors.black.withValues(alpha: .26),
+                      Colors.black.withValues(alpha: .12),
+                      Colors.black.withValues(alpha: .15),
+                      background,
                     ],
                   ),
                 ),

@@ -59,10 +59,12 @@ import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.mediarouter.media.MediaRouter
+import androidx.core.view.WindowCompat
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Log
 import android.os.PowerManager
+import android.view.WindowManager
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import androidx.documentfile.provider.DocumentFile
@@ -195,6 +197,21 @@ class MainActivity: FlutterActivity() {
         JavaCrashRecorder.install(applicationContext)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         super.onCreate(savedInstanceState)
+        // Flutter requests edge-to-edge in Dart, but some OEM windows still
+        // fit the decor view below a black status bar. Make the actual Flutter
+        // surface full-screen; widget SafeAreas continue to protect controls.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val params = window.attributes
+            params.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            window.attributes = params
+        }
+        @Suppress("DEPRECATION")
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+        }
         volumeControlStream = AudioManager.STREAM_MUSIC
 
         if (!nativeInitRustAndroidContext(applicationContext)) {
