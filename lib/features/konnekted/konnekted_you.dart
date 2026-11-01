@@ -802,7 +802,7 @@ class _RecapCard extends StatelessWidget {
             children: [
               if (hasPortrait) ...[
                 DiscoveryArtwork(
-                  key: ValueKey('recap-portrait:${period.name}:$'+'artistName'),
+                  key: ValueKey('recap-portrait:${period.name}:$artistName'),
                   kind: DiscoveryArtworkKind.artist,
                   artist: artistName!,
                   width: 156,
