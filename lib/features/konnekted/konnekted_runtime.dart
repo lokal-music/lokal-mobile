@@ -294,7 +294,7 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
     _lastDesktopLyricsTrack = key;
     unawaited(() async {
       await LokalDesktopSource.instance.syncPlayingDesktopLyrics(song);
-      LyricsPlaybackPrefetch.instance.invalidate(song);
+      LyricsPlaybackPrefetch.instance.desktopLyricsArrived(song);
     }());
   }
 
