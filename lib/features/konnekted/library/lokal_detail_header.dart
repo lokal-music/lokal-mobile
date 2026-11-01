@@ -16,6 +16,7 @@ class LokalDetailHeader extends StatelessWidget {
     required this.isArtist,
     required this.background,
     required this.onBack,
+    required this.onArtworkTap,
     required this.onOnline,
     required this.onlineEnabled,
     this.onlineLoading = false,
@@ -33,7 +34,7 @@ class LokalDetailHeader extends StatelessWidget {
   final String? artworkHeroTag;
   final bool isArtist;
   final Color background;
-  final VoidCallback onBack, onOnline, onMore;
+  final VoidCallback onBack, onOnline, onMore, onArtworkTap;
   final bool onlineEnabled;
   final bool onlineLoading;
   final bool onlineDisabled;
@@ -70,7 +71,11 @@ class LokalDetailHeader extends StatelessWidget {
             ),
           ),
           if (isArtist) ...[
-            RepaintBoundary(child: artwork),
+            GestureDetector(
+              onTap: onArtworkTap,
+              behavior: HitTestBehavior.opaque,
+              child: RepaintBoundary(child: artwork),
+            ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -105,7 +110,9 @@ class LokalDetailHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: ClipRRect(
+                  child: GestureDetector(
+                    onTap: onArtworkTap,
+                    child: ClipRRect(
                     borderRadius: BorderRadius.circular(23),
                     child: artworkHeroTag == null
                         ? RepaintBoundary(child: artwork)
@@ -113,6 +120,7 @@ class LokalDetailHeader extends StatelessWidget {
                             tag: artworkHeroTag!,
                             child: RepaintBoundary(child: artwork),
                           ),
+                    ),
                   ),
                 ),
               ),
