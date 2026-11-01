@@ -146,7 +146,7 @@ class LokalDetailHeader extends StatelessWidget {
                           ? t.accent.withValues(alpha: .28)
                           : Colors.black.withValues(alpha: .16),
                       child: onlineLoading
-                          ? const SizedBox.square(
+                          ? SizedBox.square(
                               dimension: 21,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
