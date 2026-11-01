@@ -779,9 +779,7 @@ class _RecapCard extends StatelessWidget {
     final artistName = has ? recap?.topArtist?.artist.trim() : null;
     final hasPortrait = artistName?.isNotEmpty == true;
     final foreground = hasPortrait ? Colors.white : t.text;
-    final secondary = hasPortrait
-        ? Colors.white.withValues(alpha: .84)
-        : t.muted;
+    final secondary = hasPortrait ? Colors.white.withValues(alpha: .84) : t.muted;
     final accent = hasPortrait ? Colors.white : t.accent;
 
     return Semantics(
