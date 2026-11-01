@@ -11,8 +11,9 @@ import 'package:flick/core/theme/lokal_performance_scope.dart';
 /// synchronized position on a horizontal strip: their edges touch but NEVER
 /// overlap, so there is no translucent layer, crossfade or dark gap.
 ///
-/// Only one outgoing tab exists for the duration of the animation. No tabs
-/// remain cached after completion.
+/// Only one outgoing tab is visible during the animation. The main shell
+/// optionally retains three already-visited tabs offstage to reduce re-entry
+/// rebuilds without eagerly mounting every destination.
 class LokalNavigationSwitcher extends StatefulWidget {
   const LokalNavigationSwitcher({
     super.key,
@@ -93,8 +94,8 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
       // Replacing a rapidly interrupted transition discards the older
       // outgoing tree. At most two destination trees can be mounted.
       _outgoing = oldWidget.child;
-      // A widget last visited much earlier keeps its State/scroll position.
-      // Both route surfaces remain mounted only for the transition period.
+      // Previously visited roots can keep their State/scroll position.
+      // Only two surfaces are visible during the transition.
       _progress.forward(from: 0);
     }
   }
