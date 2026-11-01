@@ -1,7 +1,23 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/navigation/lokal_page_motion.dart';
+
+class _AccessibilityFeatures implements ui.AccessibilityFeatures {
+  _AccessibilityFeatures({
+    this.disableAnimations = false,
+    this.reduceMotion = false,
+  });
+
+  @override
+  final bool disableAnimations;
+  @override
+  final bool reduceMotion;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => false;
+}
 
 void main() {
   setUp(() => AppConstants.setAnimationsEnabled(true));
@@ -134,5 +150,34 @@ void main() {
       of: find.byKey(const Key('motion-wrapper')),
       matching: find.byType(SlideTransition),
     ), findsNothing);
+  });
+
+  testWidgets('system motion gate honors both platform flags', (tester) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: false),
+          child: Builder(
+            builder: (value) {
+              context = value;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    final dispatcher = tester.binding.platformDispatcher;
+    addTearDown(dispatcher.clearAccessibilityFeaturesTestValue);
+    dispatcher.accessibilityFeaturesTestValue = _AccessibilityFeatures();
+    expect(systemRequestsReducedMotion(context), isFalse);
+    dispatcher.accessibilityFeaturesTestValue = _AccessibilityFeatures(
+      reduceMotion: true,
+    );
+    expect(systemRequestsReducedMotion(context), isTrue);
+    dispatcher.accessibilityFeaturesTestValue = _AccessibilityFeatures(
+      disableAnimations: true,
+    );
+    expect(systemRequestsReducedMotion(context), isTrue);
   });
 }
