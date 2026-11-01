@@ -252,6 +252,7 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
+      expect(find.text('LOKAL'), findsOneWidget);
       await tapAndShare(tester, find.text(l10n.share).last);
       if (fail) {
         expect(find.text(l10n.shareFailed(shareError!)), findsOneWidget);
