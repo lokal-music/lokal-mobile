@@ -87,45 +87,50 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
 
   @override
   Widget build(BuildContext context) {
-    if (_reduceMotion || _outgoing == null) return widget.child;
+    final reduceMotion = _reduceMotion;
+    final animating = _outgoing != null && !reduceMotion;
     final direction =
         (Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0) *
         _travel;
 
+    // Keep this exact Stack/AnimatedBuilder ancestry even when idle.
+    // Reparenting a KeyedSubtree from a bare child to a different wrapper
+    // on every navigation would dispose/recreate heavy Home state.
     return ClipRect(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          AnimatedBuilder(
-            animation: _progress,
-            child: _outgoing,
-            builder: (context, outgoing) {
-              final progress = LokalNavigationSwitcher.curve
-                  .transform(_progress.value);
-              return IgnorePointer(
-                ignoring: true,
-                child: ExcludeSemantics(
-                  child: TickerMode(
-                    enabled: false,
-                    child: FractionalTranslation(
-                      // The outgoing page occupies [-p, 1-p] in LTR.
-                      translation: Offset(-direction * progress, 0),
-                      child: RepaintBoundary(child: outgoing!),
+          if (animating)
+            AnimatedBuilder(
+              key: ValueKey(_outgoing!.key),
+              animation: _progress,
+              child: _outgoing,
+              builder: (context, outgoing) {
+                final progress = LokalNavigationSwitcher.curve
+                    .transform(_progress.value);
+                return IgnorePointer(
+                  ignoring: true,
+                  child: ExcludeSemantics(
+                    child: TickerMode(
+                      enabled: false,
+                      child: FractionalTranslation(
+                        translation: Offset(-direction * progress, 0),
+                        child: RepaintBoundary(child: outgoing!),
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
           AnimatedBuilder(
+            key: ValueKey(widget.child.key),
             animation: _progress,
             child: widget.child,
             builder: (context, incoming) {
-              final progress = LokalNavigationSwitcher.curve
-                  .transform(_progress.value);
+              final progress = animating
+                  ? LokalNavigationSwitcher.curve.transform(_progress.value)
+                  : 1.0;
               return FractionalTranslation(
-                // The incoming page occupies [1-p, 2-p] in LTR. Its left
-                // edge exactly meets the outgoing page's right edge.
                 translation: Offset(direction * (1 - progress), 0),
                 child: RepaintBoundary(child: incoming!),
               );
