@@ -41,6 +41,47 @@ class AlbumArtCandidate {
   final String? releaseDate;
 }
 
+/// Rank only artwork that plausibly represents this exact album and its
+/// credited lead artist. Search engines often return similarly named tracks,
+/// compilations or other artists ahead of the correct release.
+List<AlbumArtCandidate> relevantAlbumArtwork({
+  required String album,
+  required String artist,
+  required List<AlbumArtCandidate> candidates,
+}) {
+  String normalize(String value) => value.toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .replaceAll(RegExp(r'\\s+'), ' ').trim();
+  final title = normalize(album);
+  final lead = normalize(artist);
+  if (title.isEmpty) return const [];
+  int score(AlbumArtCandidate candidate) {
+    final candidateTitle = normalize(candidate.title);
+    final candidateArtist = normalize(candidate.artist);
+    final titleExact = candidateTitle == title;
+    final titleVariant = title.length >= 5 &&
+        (candidateTitle.startsWith('$title ') ||
+         title.startsWith('$candidateTitle '));
+    if (!titleExact && !titleVariant) return -1;
+    final artistExact = candidateArtist == lead;
+    final artistCompatible = lead.length >= 4 &&
+        candidateArtist.isNotEmpty &&
+        (candidateArtist.contains(lead) || lead.contains(candidateArtist));
+    if (lead.isNotEmpty && !artistExact && !artistCompatible) return -1;
+    return (titleExact ? 100 : 50) + (artistExact ? 40 : 15);
+  }
+  final scored = [
+    for (final candidate in candidates)
+      if (score(candidate) >= 0)
+        (candidate: candidate, score: score(candidate)),
+  ]..sort((a,b) => b.score.compareTo(a.score));
+  final seen = <String>{};
+  return [
+    for (final item in scored)
+      if (seen.add(item.candidate.imageUrl)) item.candidate,
+  ].take(20).toList(growable: false);
+}
+
 enum AlbumArtScope { wholeAlbum, songOnly }
 
 class AlbumArtUpdateResult {
@@ -103,7 +144,7 @@ class AlbumArtImportService {
       lastError = error;
     }
 
-    if (candidates.length < 8) {
+    if (relevantAlbumArtwork(album: album, artist: artist, candidates: candidates).length < 8) {
       try {
         candidates.addAll(
           await _searchCoverArtArchive(
@@ -118,7 +159,7 @@ class AlbumArtImportService {
       }
     }
 
-    if (candidates.length < 12) {
+    if (relevantAlbumArtwork(album: album, artist: artist, candidates: candidates).length < 12) {
       try {
         candidates.addAll(await _searchITunes(album: album, artist: artist));
       } catch (error) {
@@ -126,7 +167,7 @@ class AlbumArtImportService {
       }
     }
 
-    if (candidates.length < 12) {
+    if (relevantAlbumArtwork(album: album, artist: artist, candidates: candidates).length < 12) {
       try {
         candidates.addAll(await _searchDeezer(album: album, artist: artist));
       } catch (error) {
@@ -134,7 +175,9 @@ class AlbumArtImportService {
       }
     }
 
-    final deduped = _dedupeCandidates(candidates);
+    final deduped = relevantAlbumArtwork(
+      album: album, artist: artist, candidates: candidates,
+    );
     if (deduped.isEmpty && lastError != null) {
       throw _asImportException(lastError);
     }
@@ -465,7 +508,7 @@ class AlbumArtImportService {
         'term': query,
         'entity': 'album',
         'limit': '10',
-        'country': 'US',
+        'country': 'GB',
       }),
     );
 
@@ -702,16 +745,6 @@ class AlbumArtImportService {
     );
     await file.writeAsBytes(bytes, flush: true);
     return file;
-  }
-
-  List<AlbumArtCandidate> _dedupeCandidates(
-    List<AlbumArtCandidate> candidates,
-  ) {
-    final deduped = <String, AlbumArtCandidate>{};
-    for (final candidate in candidates) {
-      deduped.putIfAbsent(candidate.imageUrl, () => candidate);
-    }
-    return deduped.values.take(12).toList(growable: false);
   }
 
   String _buildMusicBrainzQuery({
