@@ -286,8 +286,14 @@ class _YoutubePlaylistDetailState
     );
     final track = _tracks[index];
     final song = library.match(track) ?? discoveryPendingSong(track);
-    unawaited(SongActionsBottomSheet.show(
-      context, song, queueActions: false, hideMediaActions: true));
+    unawaited(
+      SongActionsBottomSheet.show(
+        context,
+        song,
+        queueActions: false,
+        hideMediaActions: true,
+      ),
+    );
   }
 
   @override
