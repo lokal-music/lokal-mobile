@@ -3,6 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/lokal_performance_scope.dart';
 
+/// Whether the system asks the app to avoid motion.
+bool systemRequestsReducedMotion(BuildContext context) {
+  final accessibility =
+      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures;
+  return MediaQuery.disableAnimationsOf(context) ||
+      accessibility.disableAnimations ||
+      accessibility.reduceMotion;
+}
+
+
 /// A single, opacity-free shared-axis motion for all ordinary Lokal routes.
 ///
 /// The old implementation nested Flutter's Android predictive-back builder
