@@ -768,25 +768,24 @@ class _MixCard extends StatelessWidget {
       onPlay(mix.tracks.first, mix.tracks);
     }
 
-    return Semantics(
-      button: true,
-      label: lokalText(
-        "Play {arg0}, {arg1} songs",
-        args: {'arg0': mix.title, 'arg1': mix.tracks.length},
-      ),
-      excludeSemantics: true,
-      onTap: play,
-      child: InkWell(
+    return InkWell(
         onTap: play,
         borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: KonnektedMixArt(songs: mix.tracks),
+            Semantics(
+              button: true,
+              label: lokalText(
+                "Play {arg0}, {arg1} songs",
+                args: {'arg0': mix.title, 'arg1': mix.tracks.length},
+              ),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: KonnektedMixArt(songs: mix.tracks),
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -819,7 +818,6 @@ class _MixCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
