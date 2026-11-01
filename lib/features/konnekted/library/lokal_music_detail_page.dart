@@ -2,6 +2,7 @@ import 'package:flick/features/songs/widgets/song_actions_bottom_sheet.dart';
 import 'package:flick/features/library_jobs/artist_metadata.dart';
 
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +39,7 @@ import 'package:flick/features/link/lokal_ghost_availability.dart';
 import 'artist_follow_store.dart';
 import 'lokal_artwork_reveal.dart';
 import 'lokal_detail_header.dart';
+import 'artist_portrait_auto_crop.dart';
 import 'lokal_library_groups.dart';
 import 'lokal_library_kit.dart';
 import 'lokal_online_catalogue.dart';
@@ -649,13 +651,56 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     }
     final stagedArtwork = LokalArtworkReveal(
       identity: '${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}',
-      child: heroArtwork,
+      child: widget.isArtist
+          ? ArtistPortraitAutoCrop(imagePath: heroImage ?? localCover, fallback: heroArtwork)
+          : heroArtwork,
     );
     return Scaffold(
       backgroundColor: pageColor,
-      body: CustomScrollView(
+      body: Stack(
+        children: [
+          // The status-bar inset and elastic overscroll reveal this backing
+          // layer. Reuse Full Player's artwork-blur treatment, not a black void.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 240,
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                        child: heroArtwork,
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: .30),
+                              pageColor.withValues(alpha: .90),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: CustomScrollView(
         controller: _scrollController,
         primary: false,
+        // Keep the natural top inset: offset zero is the resting position.
+        // Pull-down overscroll may expose the artwork above it temporarily,
+        // but must bounce back when the gesture ends.
         slivers: [
           SliverToBoxAdapter(
             child: LokalDetailHeader(
@@ -671,6 +716,43 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                       lokalSongCount(rows.length),
                       if (runningTime != null) runningTime,
                     ].join('  ·  '),
+              onArtworkTap: () {
+                final image = heroImage?.isNotEmpty == true ? heroImage : localCover;
+                if (image == null || image.isEmpty) return;
+                showDialog<void>(
+                  context: context,
+                  barrierColor: Colors.black,
+                  builder: (viewerContext) => Dialog.fullscreen(
+                    backgroundColor: Colors.black,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 5,
+                          child: Center(
+                            child: CachedImageWidget(
+                              imagePath: image,
+                              audioSourcePath: widget.isArtist
+                                  ? null : localArtworkSong?.filePath,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: MediaQuery.paddingOf(viewerContext).top + 12,
+                          left: 16,
+                          child: IconButton.filledTonal(
+                            tooltip: l10n.back,
+                            onPressed: () => Navigator.of(viewerContext).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
               onBack: () => Navigator.of(context).maybePop(),
               onlineEnabled: _online,
               onlineLoading: _loading,
@@ -869,6 +951,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             ),
           SliverToBoxAdapter(
             child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
+          ),
+        ],
+            ),
           ),
         ],
       ),
