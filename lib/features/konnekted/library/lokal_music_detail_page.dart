@@ -321,7 +321,12 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (_online)
       for (final track in _page?.tracks ?? <LokalCatalogueTrack>[]) {
         if (!seen.add(track.metadata.key)) continue;
-        final owned = KonnektedLibraryIndex.of(library).match(track.metadata);
+        // Even a cached online catalogue can return during the push.
+        // Delay the first global match-index construction until the page
+        // settles; entries are rematched in the next build.
+        final owned = _relatedReady
+            ? KonnektedLibraryIndex.of(library).match(track.metadata)
+            : null;
         if (owned != null) seenOwned.add(owned.id);
         rows.add(_Entry(track, owned));
       }
