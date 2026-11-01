@@ -91,8 +91,14 @@ void main() {
     final artSize = tester.getSize(find.byKey(const ValueKey('wallpaper')));
     expect(artSize.width, 390);
     expect(artSize.height, height);
-    expect(tester.getBottomLeft(find.byKey(const ValueKey('wallpaper'))).dy,
-        height);
+    final backing = tester.widget<Positioned>(
+      find.descendant(
+        of: find.byType(LokalDetailOverscrollBackdrop),
+        matching: find.byType(Positioned),
+      ).first,
+    );
+    expect(backing.top, 0);
+    expect(backing.height, height);
 
     final gradients = tester.widgetList<DecoratedBox>(
       find.descendant(
