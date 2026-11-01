@@ -52,6 +52,34 @@ void main() {
     expect(switcher.duration, Duration.zero);
   });
 
+  testWidgets('artwork reveal fills a non-square hero', (tester) async {
+    final art = File('assets/branding/lokal_icon.png');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 300,
+              height: 400,
+              child: CachedImageWidget(
+                imagePath: art.path,
+                fit: BoxFit.cover,
+                revealOnLoad: true,
+                placeholder: const SizedBox(
+                  key: ValueKey('hero-placeholder'),
+                  width: 50,
+                  height: 50,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byKey(const ValueKey('hero-placeholder'))),
+        const Size(300, 400));
+  });
+
   testWidgets('list artwork stays on the existing no-fade fast path',
       (tester) async {
     final dir = await Directory.systemTemp.createTemp('lokal-no-art-reveal');

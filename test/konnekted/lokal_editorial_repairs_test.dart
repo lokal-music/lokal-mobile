@@ -202,6 +202,36 @@ void main() {
     expect(await metadata([_song, _duplicate]), '1999  ·  1 song  ·  3 min');
   });
 
+  testWidgets('artist content keeps the theme background when scrolled',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final songs = List.generate(
+      12,
+      (index) => Song(
+        id: '$index',
+        title: 'Song $index',
+        artist: 'Artist',
+        album: 'Album $index',
+        duration: const Duration(minutes: 3),
+        fileType: 'FLAC',
+      ),
+    );
+    await tester.pumpWidget(_app(LokalMusicDetailPage.artist(
+      name: 'Artist',
+      localSongs: songs,
+    )));
+    await tester.pump();
+    await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(scaffold.backgroundColor, LokalTokens.resolve(LokalThemeId.dark).bg);
+    expect(scaffold.body, isA<CustomScrollView>());
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'system back at tab root keeps nested route and returns home once',
     (tester) async {

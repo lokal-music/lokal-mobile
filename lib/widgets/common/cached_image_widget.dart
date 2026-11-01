@@ -279,6 +279,13 @@ class _CachedImageWidgetState extends State<CachedImageWidget> {
           : const Duration(milliseconds: 240),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeOutCubic,
+      // Preserve the parent's tight constraints so BoxFit.cover fills a
+      // full-bleed hero while its decoded frame crossfades in.
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        fit: StackFit.passthrough,
+        alignment: Alignment.center,
+        children: [...previousChildren, ?currentChild],
+      ),
       child: decoded
           ? KeyedSubtree(
               key: const ValueKey('decoded-artwork'),
