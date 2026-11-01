@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import 'package:flick/core/theme/lokal_theme.dart';
@@ -76,18 +78,24 @@ class LokalDetailHeader extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               child: RepaintBoundary(child: artwork),
             ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0, .3, .63, 1],
-                  colors: [
-                    Colors.black.withValues(alpha: .50),
-                    Colors.transparent,
-                    artistScrim.withValues(alpha: .75),
-                    artistScrim,
-                  ],
+            // A full-size decoration sits *above* the portrait. Without
+            // IgnorePointer, its RenderDecoratedBox wins hit testing and
+            // consumes taps before the artwork's GestureDetector can open
+            // the fullscreen viewer.
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, .3, .63, 1],
+                    colors: [
+                      Colors.black.withValues(alpha: .50),
+                      Colors.transparent,
+                      artistScrim.withValues(alpha: .75),
+                      artistScrim,
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -258,5 +266,60 @@ class LokalDetailHeader extends StatelessWidget {
     onPressed: onTap,
     tint: Colors.black.withValues(alpha: .16),
     child: Icon(icon, color: isArtist ? Colors.white : context.lokal.text, size: 23),
+  );
+}
+
+
+/// Artwork visible *behind* the scrollable detail page during pull-down.
+///
+/// The previous backing was only 240dp tall and ended in a 90%-opaque page
+/// colour. Pulling an artist page down exposed that synthetic near-black tail
+/// between the blurred wallpaper and the full-resolution portrait. It looked
+/// like an identical letterbox band on every artist, but was not image data.
+///
+/// Cover the whole viewport, keep the same unobstructed photograph beneath a
+/// light constant scrim, and overscan before blurring to avoid black sampling
+/// at its edges. This layer is never interactive and is isolated from scrolling
+/// repaints. The foreground artist hero still uses BoxFit.cover.
+class LokalDetailOverscrollBackdrop extends StatelessWidget {
+  const LokalDetailOverscrollBackdrop({super.key, required this.artwork});
+
+  final Widget artwork;
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+    child: IgnorePointer(
+      child: RepaintBoundary(
+        child: ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Transform.scale(
+                scale: 1.25,
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: artwork,
+                ),
+              ),
+              // Do not fade to pageColor here. The user can overscroll farther
+              // than the old fixed-height scrim, revealing a black horizontal
+              // strip that has nothing to do with the source image.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: .20),
+                      Colors.black.withValues(alpha: .26),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }
