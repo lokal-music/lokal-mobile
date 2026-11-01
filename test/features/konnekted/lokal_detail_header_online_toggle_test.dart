@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flick/core/theme/lokal_theme.dart';
@@ -8,6 +9,8 @@ import 'package:flick/features/konnekted/library/lokal_detail_header.dart';
 void main() {
   testWidgets('album/artist online catalogue control is icon-only', (tester) async {
     var toggles = 0;
+    final handle = tester.ensureSemantics();
+    addTearDown(handle.dispose);
 
     Widget header({required bool active, bool artist = false}) => MaterialApp(
       theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
@@ -28,12 +31,18 @@ void main() {
     await tester.pumpWidget(header(active: false));
     expect(find.byIcon(Icons.ios_share_rounded), findsNothing);
     expect(find.byIcon(Icons.language_outlined), findsOneWidget);
+    final offlineLabel = find.bySemanticsLabel('Enable online catalogue');
+    expect(offlineLabel, findsOneWidget);
+    expect(tester.getSemantics(offlineLabel).hasFlag(SemanticsFlag.isButton), isTrue);
     expect(find.text('Online catalogue'), findsNothing);
     await tester.tap(find.byIcon(Icons.language_outlined));
     expect(toggles, 1);
 
     await tester.pumpWidget(header(active: true, artist: true));
     expect(find.byIcon(Icons.language_rounded), findsOneWidget);
+    final onlineLabel = find.bySemanticsLabel('Disable online catalogue');
+    expect(onlineLabel, findsOneWidget);
+    expect(tester.getSemantics(onlineLabel).hasFlag(SemanticsFlag.isButton), isTrue);
     expect(find.text('Online catalogue'), findsNothing);
     await tester.tap(find.byIcon(Icons.language_rounded));
     expect(toggles, 2);
