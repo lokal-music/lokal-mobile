@@ -51,7 +51,7 @@ List<AlbumArtCandidate> relevantAlbumArtwork({
 }) {
   String normalize(String value) => value.toLowerCase()
       .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-      .replaceAll(RegExp(r'\\s+'), ' ').trim();
+      .trim();
   final title = normalize(album);
   final lead = normalize(artist);
   if (title.isEmpty) return const [];
