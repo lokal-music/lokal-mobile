@@ -7,6 +7,7 @@ Song song(
   String title,
   String path, {
   String artist = 'Artist',
+  String? albumArtist,
   String? album = 'Album',
   String? source,
   Duration duration = const Duration(minutes: 3),
@@ -14,6 +15,7 @@ Song song(
   id: id,
   title: title,
   artist: artist,
+  albumArtist: albumArtist,
   album: album,
   duration: duration,
   fileType: 'FLAC',
@@ -22,6 +24,17 @@ Song song(
 );
 
 void main() {
+  test('album owner remains the lead when the full credit lists multiple artists', () {
+    final phone = song('phone', 'All the Stars', '/music/stars.flac',
+      artist: 'SZA', albumArtist: 'SZA');
+    final pc = song('pc', 'All the Stars', 'lokal://1/stars',
+      artist: 'Kendrick Lamar, SZA', albumArtist: 'SZA', source: 'lokal');
+    expect(creditedLeadArtist(pc), 'SZA');
+    final index = preferredLibrarySongIndex([pc, phone]);
+    expect(index.visible.map((s) => s.id), ['phone']);
+    expect(index.byId['pc']?.id, 'phone');
+  });
+
   test(
     '5500 phone songs retain order, identity and lookups without desktop rows',
     () {
