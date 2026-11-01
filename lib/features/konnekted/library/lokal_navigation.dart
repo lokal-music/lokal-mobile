@@ -79,7 +79,7 @@ Future<void> pushLokalPage(BuildContext context, Widget page) async {
   // reverse transition with a new route after an arbitrary 16/210ms delay.
   // That overlap caused expensive simultaneous compositing and black frames.
   // Wait until the route is *removed from the overlay*, not merely popped.
-  final waitForClose = closingRoute is TransitionRoute &&
+  final waitForClose = closingRoute != null &&
       identical(closingRoute.navigator, root) &&
       !closingRoute.isFirst;
   root.popUntil((r) => r.isFirst);
