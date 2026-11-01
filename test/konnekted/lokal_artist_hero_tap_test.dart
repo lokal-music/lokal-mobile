@@ -103,6 +103,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('album uses the same full-bleed header as artist', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var artworkTaps = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
+          home: Scaffold(
+            body: LokalDetailHeader(
+              title: 'Album',
+              artwork: const ColoredBox(color: Colors.red),
+              isArtist: false,
+              fixedArtwork: true,
+              background: Colors.black,
+              onArtworkTap: () => artworkTaps++,
+              onBack: () {},
+              onMore: () {},
+              onOnline: () {},
+              onlineEnabled: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final header = tester.widget<LokalDetailHeader>(
+      find.byType(LokalDetailHeader),
+    );
+    expect(header.fixedArtwork, isTrue);
+    expect(
+      tester.getSize(find.byType(LokalDetailHeader)).height,
+      closeTo(844 * .52, .01),
+    );
+    expect(tester.widget<Text>(find.text('Album')).style?.color, Colors.white);
+    await tester.tapAt(const Offset(195, 235));
+    expect(artworkTaps, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('album cover tap is preserved by the shared detail header',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
