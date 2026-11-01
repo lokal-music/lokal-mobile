@@ -5,9 +5,8 @@ import 'package:flick/l10n/l10n.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/widgets/lokal/lokal_glass.dart';
 
-/// The artist and album headers share chrome, but not artwork treatment:
-/// artists get a photographic canvas; albums get an actual framed cover.
-/// This avoids stretching square covers across an entire phone display.
+/// Shared album/artist title and controls. Detail pages can paint their
+/// artwork in a stationary layer behind this scrollable, transparent header.
 class LokalDetailHeader extends StatelessWidget {
   const LokalDetailHeader({
     super.key,
@@ -196,7 +195,7 @@ class LokalDetailHeader extends StatelessWidget {
                               // on both dark artwork and light album headers.
                               color: onlineEnabled
                                   ? t.accent
-                                  : (isArtist ? Colors.white : t.text),
+                                  : (fullBleed ? Colors.white : t.text),
                               size: 23,
                             ),
                     ),
@@ -243,7 +242,7 @@ class LokalDetailHeader extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1.35,
                       height: 1.06,
-                      color: isArtist ? Colors.white : t.text,
+                      color: fullBleed ? Colors.white : t.text,
                       shadows: fullBleed
                           ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
                           : null,
