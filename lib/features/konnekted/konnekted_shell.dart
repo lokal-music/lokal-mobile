@@ -56,6 +56,7 @@ class KonnektedShell extends ConsumerStatefulWidget {
 class _KonnektedShellState extends ConsumerState<KonnektedShell>
     with ArtworkExtractionScrollGate {
   final _tab = ValueNotifier(KonnektedTab.listen);
+  int _tabMotionDirection = 1;
   // Explicit bottom-bar Search taps, including reselecting an open Search tab.
   // The lazy Search page observes this without forcing a shell rebuild.
   final _searchFocusRequests = ValueNotifier<int>(0);
@@ -87,7 +88,12 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
     LokalPerformanceAdvisor.noteNavigation();
     AppHaptics.doublePulse();
     nestedNavigatorKey.currentState?.popUntil((route) => route.isFirst);
-    _tab.value = tab;
+    if (_tab.value != tab) {
+      // Match PixelPlayer's order-aware root navigation: Library -> Home
+      // returns from the left, Home -> Library advances from the right.
+      _tabMotionDirection = tab.index > _tab.value.index ? 1 : -1;
+      _tab.value = tab;
+    }
     _dockCollapsed.value = false;
     if (tab == KonnektedTab.explore) _searchFocusRequests.value++;
   }
@@ -381,6 +387,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
                                   child: ValueListenableBuilder<KonnektedTab>(
                                     valueListenable: _tab,
                                     builder: (_, tab, _) => LokalNavigationSwitcher(
+                                      direction: _tabMotionDirection,
                                       child: KeyedSubtree(
                                         key: ValueKey(tab),
                                         child: switch (tab) {
