@@ -1,4 +1,5 @@
 import 'package:flick/core/theme/lokal_appearance.dart';
+import 'package:flick/models/song.dart';
 import 'package:flick/providers/automatic_update_preference.dart';
 import 'package:flick/providers/connectivity_provider.dart';
 import 'package:flick/features/updates/lokal_update_sheet.dart';
