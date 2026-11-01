@@ -64,26 +64,10 @@ class LokalPageMotion extends PageTransitionsBuilder {
       reverseCurve: backCurve,
     );
 
-    // This builder *must* read animation.status on every frame. A tween
-    // selected only in buildTransitions would be frozen at push time and pop
-    // would still stop after 34% of the viewport, producing the exact
-    // half-dismiss seen in the device recording.
-    final incoming = AnimatedBuilder(
+    final incoming = _ContinuousForegroundSlide(
       animation: animation,
+      direction: direction,
       child: RepaintBoundary(child: child),
-      builder: (context, paintedPage) {
-        final returning = animation.status == AnimationStatus.reverse;
-        final curved = (returning ? backCurve : enterCurve)
-            .transform(animation.value.clamp(0.0, 1.0));
-        return FractionalTranslation(
-          translation: Offset(
-            (returning ? exitOffset : enterOffset) *
-                direction * (1 - curved),
-            0,
-          ),
-          child: paintedPage!,
-        );
-      },
     );
 
     // Ultra Performance Mode avoids translating/rasterizing the old page at
@@ -99,6 +83,95 @@ class LokalPageMotion extends PageTransitionsBuilder {
       child: incoming,
     );
   }
+}
+
+/// Maintains the rendered position across a mid-flight push/Back reversal.
+/// The entering path starts 34% offscreen, while pop finishes 100% offscreen.
+/// Switching between those unequal travel distances without an anchor would
+/// make a partially entered page jump when system Back is invoked.
+class _ContinuousForegroundSlide extends StatefulWidget {
+  const _ContinuousForegroundSlide({
+    required this.animation,
+    required this.direction,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final double direction;
+  final Widget child;
+
+  @override
+  State<_ContinuousForegroundSlide> createState() =>
+      _ContinuousForegroundSlideState();
+}
+
+class _ContinuousForegroundSlideState
+    extends State<_ContinuousForegroundSlide> {
+  late AnimationStatus _phase;
+  late double _startValue;
+  late double _startOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  void _initialize() {
+    _phase = widget.animation.status;
+    _startValue = _phase == AnimationStatus.reverse ||
+            _phase == AnimationStatus.completed
+        ? 1.0 : 0.0;
+    _startOffset = _phase == AnimationStatus.reverse ||
+            _phase == AnimationStatus.completed
+        ? 0.0 : LokalPageMotion.enterOffset;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContinuousForegroundSlide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.animation, oldWidget.animation)) _initialize();
+  }
+
+  double _offsetAt(double value) {
+    final p = value.clamp(0.0, 1.0);
+    if (_phase == AnimationStatus.completed) return 0.0;
+    if (_phase == AnimationStatus.dismissed) return _startOffset;
+    if (_phase == AnimationStatus.reverse) {
+      final fraction = _startValue <= 0
+          ? 1.0 : ((_startValue - p) / _startValue).clamp(0.0, 1.0);
+      return _startOffset +
+          (LokalPageMotion.exitOffset - _startOffset) *
+              LokalPageMotion.backCurve.transform(fraction);
+    }
+    final fraction = _startValue >= 1
+        ? 1.0 : ((p - _startValue) / (1 - _startValue)).clamp(0.0, 1.0);
+    return _startOffset *
+        (1 - LokalPageMotion.enterCurve.transform(fraction));
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.animation,
+    child: widget.child,
+    builder: (context, page) {
+      final value = widget.animation.value;
+      final status = widget.animation.status;
+      if (status != _phase) {
+        // Capture the old position at *this exact animation value* before
+        // changing the target. A reverse/cancel at p=.45 stays at the same x.
+        final position = _offsetAt(value);
+        _phase = status;
+        _startValue = value;
+        _startOffset = position;
+        if (status == AnimationStatus.completed) _startOffset = 0;
+      }
+      return FractionalTranslation(
+        translation: Offset(_offsetAt(value) * widget.direction, 0),
+        child: page!,
+      );
+    },
+  );
 }
 
 /// A native Material route keeps Navigator, Hero and Android system Back
