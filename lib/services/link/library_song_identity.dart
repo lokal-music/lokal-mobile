@@ -1,6 +1,7 @@
 import 'package:flick/features/discovery/recommendation_match.dart'
     show leadArtist, recommendationKey, titleKey;
 import 'package:flick/models/song.dart';
+import 'package:flick/core/utils/artist_credits.dart' show splitArtistCredits;
 
 /// The desktop keeps the complete track credits. Where the album artist
 /// actually appears among a multi-artist credit, it identifies the release's
@@ -9,7 +10,8 @@ String creditedLeadArtist(Song song) {
   final artist = song.artist.trim();
   final owner = song.albumArtist?.trim() ?? '';
   if (owner.isNotEmpty &&
-      recommendationKey(artist).contains(recommendationKey(owner))) {
+      splitArtistCredits(artist).any(
+        (credit) => recommendationKey(credit) == recommendationKey(owner))) {
     return leadArtist(owner);
   }
   return leadArtist(artist);
