@@ -1432,7 +1432,11 @@ class _SongTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
           onTap: onTap,
           onLongPress: () => SongActionsBottomSheet.show(
-                    context, song, queueActions: false, hideMediaActions: true),
+                    context,
+                    song,
+                    queueActions: false,
+                    hideMediaActions: true,
+                  ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppConstants.spacingMd,
@@ -1504,7 +1508,11 @@ class _SongTile extends StatelessWidget {
                     color: context.lokal.muted,
                   ),
                   onPressed: () => SongActionsBottomSheet.show(
-                    context, song, queueActions: false, hideMediaActions: true),
+                    context,
+                    song,
+                    queueActions: false,
+                    hideMediaActions: true,
+                  ),
                 ),
               ],
             ),
