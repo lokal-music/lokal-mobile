@@ -176,11 +176,19 @@ class DiscoveryArtworkResolver {
     }
   }
 
-  Future<List<Map>> _rows(Uri url, String field) async {
+  Future<List<Map>> _rows(Uri url, String field) async =>
+      (await _rowsWithStatus(url, field)).rows;
+
+  /// A successful empty search differs from a timeout or unavailable provider:
+  /// only the latter should stop trying additional artist credits.
+  Future<({List<Map> rows, bool failed})> _rowsWithStatus(
+    Uri url, String field,
+  ) async {
     try {
       final data = (await _http.json(url)
           .timeout(const Duration(seconds: 5)))[field];
-      return data is List ? data.whereType<Map>().toList() : const [];
+      return (rows: data is List ? data.whereType<Map>().toList() : <Map>[],
+          failed: false);
     } catch (error) {
       final failure = error.toString();
       onSourceFailure?.call(
@@ -193,7 +201,7 @@ class DiscoveryArtworkResolver {
             ? 'timed out'
             : 'request failed',
       );
-      return const [];
+      return (rows: <Map>[], failed: true);
     }
   }
 
@@ -299,14 +307,15 @@ class DiscoveryArtworkResolver {
     if (album && !hasProductionCredit) {
       final credits = splitArtistCredits(request.artist);
       for (final credit in credits.skip(1).take(2)) {
-        final alternate = await _rows(
+        final alternate = await _rowsWithStatus(
           Uri.https('api.deezer.com', '/search/album', {
             'q': 'artist:"$credit" album:"${request.title}"',
             'limit': '15',
           }),
           'data',
         );
-        for (final row in alternate) {
+        if (alternate.failed) break;
+        for (final row in alternate.rows) {
           if (!matchingTitle(row['title']) ||
               !same(nameOf(row['artist']), credit)) continue;
           final cover = first([row['cover_xl'], row['cover_big']]);
