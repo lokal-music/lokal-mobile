@@ -39,6 +39,7 @@ import 'package:flick/features/link/lokal_ghost_availability.dart';
 import 'artist_follow_store.dart';
 import 'lokal_artwork_reveal.dart';
 import 'lokal_detail_header.dart';
+import 'artist_portrait_auto_crop.dart';
 import 'lokal_library_groups.dart';
 import 'lokal_library_kit.dart';
 import 'lokal_online_catalogue.dart';
@@ -650,7 +651,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     }
     final stagedArtwork = LokalArtworkReveal(
       identity: '${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}',
-      child: heroArtwork,
+      child: widget.isArtist
+          ? ArtistPortraitAutoCrop(imagePath: heroImage ?? localCover, fallback: heroArtwork)
+          : heroArtwork,
     );
     return Scaffold(
       backgroundColor: pageColor,
