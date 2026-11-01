@@ -157,7 +157,11 @@ class LokalDetailHeader extends StatelessWidget {
                               onlineEnabled
                                   ? Icons.language_rounded
                                   : Icons.language_outlined,
-                              color: isArtist ? Colors.white : t.text,
+                              // The active catalogue state must remain clear
+                              // on both dark artwork and light album headers.
+                              color: onlineEnabled
+                                  ? t.accent
+                                  : (isArtist ? Colors.white : t.text),
                               size: 23,
                             ),
                     ),
