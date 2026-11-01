@@ -284,6 +284,29 @@ class DiscoveryArtworkResolver {
       }
     }
 
+    // Desktop can resolve album artwork under the album/primary artist when
+    // a track credits a featured performer first. Try one additional credited
+    // artist only after the strict first lookup fails, and still require an
+    // exact album/title match. Never accept the first unrelated search hit.
+    if (album) {
+      final credits = splitArtistCredits(request.artist);
+      for (final credit in credits.skip(1).take(2)) {
+        final alternate = await _rows(
+          Uri.https('api.deezer.com', '/search/album', {
+            'q': 'artist:"$credit" album:"${request.title}"',
+            'limit': '15',
+          }),
+          'data',
+        );
+        for (final row in alternate) {
+          if (!matchingTitle(row['title']) ||
+              !same(nameOf(row['artist']), credit)) continue;
+          final cover = first([row['cover_xl'], row['cover_big']]);
+          if (cover.isNotEmpty) return cover;
+        }
+      }
+    }
+
     // Storefront availability differs even for well-known original recordings.
     // US can return only covers (e.g. Plastic Love); GB has the original.
     for (final country in ['us', 'gb', if (album) 'in']) {
