@@ -521,6 +521,7 @@ class _QueueRow extends StatelessWidget {
                   context,
                   song,
                   queueActions: false,
+                  hideMediaActions: true,
                   extras: [
                     if (onRemove != null)
                       LokalSongMenuAction(
