@@ -85,7 +85,7 @@ class _KonnektedShellState extends ConsumerState<KonnektedShell>
   }
 
   void _select(KonnektedTab tab) {
-    LokalPerformanceAdvisor.noteNavigation();
+    LokalPerformanceAdvisor.noteNavigation(surface: 'tabs');
     AppHaptics.doublePulse();
     nestedNavigatorKey.currentState?.popUntil((route) => route.isFirst);
     if (_tab.value != tab) {
