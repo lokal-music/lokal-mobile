@@ -117,6 +117,11 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   List<Song>? _cachedLocal;
   List<AlbumGroup>? _cachedRelated;
   List<Song>? _relatedSource;
+  List<_Entry>? _entryCache;
+  List<Song>? _entryCacheLocal, _entryCacheLibrary;
+  Object? _entryCacheCounts;
+  LokalCataloguePage? _entryCachePage;
+  bool? _entryCacheOnline, _entryCacheReady;
   String get _identity =>
       '${widget.isArtist ? 'artist' : 'album'}:${recommendationKey(widget.artist)}:${recommendationKey(widget.title)}';
   String get _consentKey => 'lokal.catalogue.online.$_identity';
@@ -165,6 +170,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       _cachedLocal = null;
       _cachedRelated = null;
       _relatedSource = null;
+      _entryCache = null;
     }
   }
 
@@ -320,6 +326,19 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   }
 
   List<_Entry> _entries(List<Song> library, List<Song> local) {
+    // Rebuilding the hero (online toggle, artwork resolution, favorites) must
+    // not re-sort every song or reconstruct the global catalogue match index.
+    // Use object identity; repository/provider updates create new snapshots.
+    final counts = ref.watch(lokalPlayCountsProvider).value ?? const {};
+    if (_entryCache != null &&
+        identical(local, _entryCacheLocal) &&
+        identical(library, _entryCacheLibrary) &&
+        identical(counts, _entryCacheCounts) &&
+        identical(_page, _entryCachePage) &&
+        _entryCacheOnline == _online &&
+        _entryCacheReady == _relatedReady) {
+      return _entryCache!;
+    }
     final seen = <String>{};
     final seenOwned = <String>{};
     final rows = <_Entry>[];
@@ -335,7 +354,6 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         if (owned != null) seenOwned.add(owned.id);
         rows.add(_Entry(track, owned));
       }
-    final counts = ref.watch(lokalPlayCountsProvider).value ?? const {};
     final ordered = List<Song>.of(local)
       ..sort((a, b) {
         if (widget.isArtist)
@@ -365,7 +383,13 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
           ),
         );
     }
-    return rows;
+    _entryCacheLocal = local;
+    _entryCacheLibrary = library;
+    _entryCacheCounts = counts;
+    _entryCachePage = _page;
+    _entryCacheOnline = _online;
+    _entryCacheReady = _relatedReady;
+    return _entryCache = rows;
   }
 
   Future<Song> _prepare(_Entry entry) async {
