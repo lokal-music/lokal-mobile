@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('fixed hero uses blur and alpha fade without a dark scrim',
+  testWidgets('fixed hero keeps image sharp and only feathers its bottom edge',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -42,8 +42,18 @@ void main() {
         of: find.byType(LokalDetailFixedBackdrop),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(
+      find.descendant(
+        of: find.byType(LokalDetailFixedBackdrop),
+        matching: find.byType(ImageFiltered),
+      ),
+      findsNothing,
+    );
+    final feather = LokalDetailFixedBackdrop.edgeFeather;
+    expect(feather.stops, [0, .92, 1]);
+    expect(feather.colors, [Colors.white, Colors.white, Colors.transparent]);
     // There should be no darkening/shadow/tint overlay over the artwork.
     expect(
       find.descendant(
