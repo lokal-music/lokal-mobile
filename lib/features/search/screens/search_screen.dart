@@ -1047,7 +1047,8 @@ class _SongTile extends ConsumerWidget {
           ],
         ),
         onTap: () => onPlay(song, playlistForMode),
-        onLongPress: () => SongActionsBottomSheet.show(context, song),
+        onLongPress: () => SongActionsBottomSheet.show(
+          context, song, queueActions: false, hideMediaActions: true),
       ),
     );
   }
