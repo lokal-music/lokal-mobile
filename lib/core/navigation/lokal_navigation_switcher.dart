@@ -130,7 +130,11 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
           for (final key in ordered)
             AnimatedBuilder(
               key: ValueKey(key),
-              animation: _progress,
+              // Hidden cached tabs retain their State but do not subscribe
+              // to 120-Hz translation ticks or rebuild their layout.
+              animation: (key == current || key == exiting)
+                  ? _progress
+                  : const AlwaysStoppedAnimation<double>(1),
               child: RepaintBoundary(
                 child: TickerMode(
                   enabled: key == current,
