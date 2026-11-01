@@ -18,6 +18,8 @@ class LyricsPlaybackPrefetch {
 
   void desktopLyricsArrived(Song song) {
     invalidate(song);
+    // Force a fresh event even if the same desktop song receives new lyrics.
+    linkedLyricsUpdated.value = null;
     linkedLyricsUpdated.value = song.id;
   }
 
