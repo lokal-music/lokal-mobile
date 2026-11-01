@@ -34,7 +34,7 @@ class _LokalDesktopLinkScreenState
       _sendDownloads = false;
   String? _error;
   String? _copyFolderUri;
-  List<String> _copyFolders = const [];
+  List<MusicFolder> _copyFolders = const [];
   @override
   void initState() {
     super.initState();
@@ -48,7 +48,7 @@ class _LokalDesktopLinkScreenState
     final folders = await MusicFolderService().getSavedFolders();
     if (mounted)
       setState(() {
-        _copyFolders = folders.map((f) => f.uri).toList();
+        _copyFolders = folders;
         _copyFolderUri = prefs.getString(DesktopMusicStorage.destinationKey);
         _theme = prefs.getBool('lokal.link.$id.theme') ?? false;
         _sendDownloads =
@@ -212,13 +212,13 @@ class _LokalDesktopLinkScreenState
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               key: ValueKey(_copyFolderUri),
-              initialValue: _copyFolderUri != null &&
-                      _copyFolders.contains(_copyFolderUri)
-                  ? _copyFolderUri
-                  : '',
+              initialValue: _copyFolderUri ?? '',
               decoration: InputDecoration(
                 labelText: lokalText('Save PC files to'),
-                helperText: lokalText('Choose a folder in Library settings first.'),
+                helperText: _copyFolderUri != null &&
+                    !_copyFolders.any((f) => f.uri == _copyFolderUri)
+                    ? lokalText('Selected folder is no longer available. Choose another.')
+                    : lokalText('Choose a folder in Library settings first.'),
               ),
               isExpanded: true,
               items: [
@@ -226,10 +226,24 @@ class _LokalDesktopLinkScreenState
                   value: '',
                   child: Text(lokalText('First available music folder')),
                 ),
-                for (final uri in _copyFolders)
+                if (_copyFolderUri != null &&
+                    !_copyFolders.any((f) => f.uri == _copyFolderUri))
                   DropdownMenuItem<String>(
-                    value: uri,
-                    child: Text(uri, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    value: _copyFolderUri!,
+                    child: Text(
+                      lokalText('Previously selected folder unavailable — choose another'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                for (final folder in _copyFolders)
+                  DropdownMenuItem<String>(
+                    value: folder.uri,
+                    child: Text(
+                      folder.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
               onChanged: progress.busy ? null : (uri) async {
