@@ -59,6 +59,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('overscroll artwork fills the viewport without a black fade-out',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              LokalDetailOverscrollBackdrop(
+                artwork: ColoredBox(
+                  key: ValueKey('wallpaper'),
+                  color: Colors.brown,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // A pull-down can expose more than the old 240dp backing. It must still
+    // be artwork, not the uncovered black Scaffold or a 90% opaque scrim.
+    final artSize = tester.getSize(find.byKey(const ValueKey('wallpaper')));
+    expect(artSize.width, 390);
+    expect(artSize.height, 844);
+
+    final scrims = tester.widgetList<DecoratedBox>(
+      find.descendant(
+        of: find.byType(LokalDetailOverscrollBackdrop),
+        matching: find.byType(DecoratedBox),
+      ),
+    );
+    final gradients = scrims.map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .map((decoration) => decoration.gradient)
+        .whereType<LinearGradient>();
+    expect(gradients, isNotEmpty);
+    final alphaAtBottom = gradients.last.colors.last.a;
+    expect(alphaAtBottom, lessThan(.5));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('album cover tap is preserved by the shared detail header',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
