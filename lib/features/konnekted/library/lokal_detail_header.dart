@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import 'package:flick/core/theme/lokal_theme.dart';
@@ -41,7 +39,6 @@ class LokalDetailHeader extends StatelessWidget {
   final bool onlineLoading;
   final bool onlineDisabled;
 
-  /// Match the pull-down artwork to the foreground artist header's extent.
   static double artistHeight(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8);
@@ -90,9 +87,8 @@ class LokalDetailHeader extends StatelessWidget {
             IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  // Keep the portrait visible. The previous 75%-black
-                  // scrim began at 63% height and its fully opaque tail
-                  // created the solid dark band in the screenshot.
+                  // Preserve contrast for the title without tinting the
+                  // edge of the photo with the page background color.
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -101,7 +97,7 @@ class LokalDetailHeader extends StatelessWidget {
                       Colors.black.withValues(alpha: .10),
                       Colors.transparent,
                       Colors.black.withValues(alpha: .15),
-                      background.withValues(alpha: .88),
+                      Colors.black.withValues(alpha: .45),
                     ],
                   ),
                 ),
@@ -274,61 +270,5 @@ class LokalDetailHeader extends StatelessWidget {
     onPressed: onTap,
     tint: Colors.black.withValues(alpha: .16),
     child: Icon(icon, color: isArtist ? Colors.white : context.lokal.text, size: 23),
-  );
-}
-
-
-/// Artwork visible on a downward pull, only above the artist header.
-/// The rest of the detail page is its usual clean, opaque surface.
-class LokalDetailOverscrollBackdrop extends StatelessWidget {
-  const LokalDetailOverscrollBackdrop({
-    super.key,
-    required this.artwork,
-    required this.height,
-    required this.background,
-  });
-
-  final Widget artwork;
-  final double height;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) => Positioned(
-    left: 0,
-    right: 0,
-    top: 0,
-    height: height,
-    child: IgnorePointer(
-      child: RepaintBoundary(
-        child: ClipRect(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Transform.scale(
-                scale: 1.12,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                  child: artwork,
-                ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0, .70, 1],
-                    colors: [
-                      Colors.black.withValues(alpha: .12),
-                      Colors.black.withValues(alpha: .15),
-                      background,
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
   );
 }

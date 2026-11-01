@@ -655,23 +655,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     );
     return Scaffold(
       backgroundColor: pageColor,
-      body: Stack(
-        children: [
-          // Only the pulled-down area above an artist hero reveals blurred
-          // artwork. No wallpaper under Play, releases or songs.
-          if (widget.isArtist)
-            LokalDetailOverscrollBackdrop(
-              artwork: heroArtwork,
-              height: LokalDetailHeader.artistHeight(context),
-              background: pageColor,
-            ),
-          Positioned.fill(
-            child: CustomScrollView(
+      body: CustomScrollView(
         controller: _scrollController,
         primary: false,
-        // Keep the natural top inset: offset zero is the resting position.
-        // Pull-down overscroll may expose the artwork above it temporarily,
-        // but must bounce back when the gesture ends.
         slivers: [
           SliverToBoxAdapter(
             child: LokalDetailHeader(
@@ -922,9 +908,6 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             ),
           SliverToBoxAdapter(
             child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
-          ),
-        ],
-            ),
           ),
         ],
       ),

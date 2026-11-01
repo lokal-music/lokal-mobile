@@ -2,6 +2,7 @@ import 'package:flick/core/theme/lokal_theme.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_header.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -14,7 +15,7 @@ void main() {
     var artworkTaps = 0;
     var moreTaps = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(child: MaterialApp(
         theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
         home: MediaQuery(
           data: const MediaQueryData(
@@ -39,7 +40,7 @@ void main() {
             ),
           ),
         ),
-      ),
+      )),
     );
     await tester.pump();
 
@@ -59,74 +60,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('pull-down backing ends with the hero, not under album and songs',
-      (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    const height = 439.0;
-
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: Stack(
-            children: [
-              LokalDetailOverscrollBackdrop(
-                height: height,
-                background: Colors.black,
-                artwork: ColoredBox(
-                  key: ValueKey('wallpaper'),
-                  color: Colors.brown,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    // The previous PR painted this artwork behind the entire viewport,
-    // including Play and featured releases. It must end at the hero boundary.
-    final artSize = tester.getSize(find.byKey(const ValueKey('wallpaper')));
-    expect(artSize.width, 390);
-    expect(artSize.height, height);
-    final backing = tester.widget<Positioned>(
-      find.descendant(
-        of: find.byType(LokalDetailOverscrollBackdrop),
-        matching: find.byType(Positioned),
-      ).first,
-    );
-    expect(backing.top, 0);
-    expect(backing.height, height);
-
-    final gradients = tester.widgetList<DecoratedBox>(
-      find.descendant(
-        of: find.byType(LokalDetailOverscrollBackdrop),
-        matching: find.byType(DecoratedBox),
-      ),
-    ).map((box) => box.decoration)
-        .whereType<BoxDecoration>()
-        .map((decoration) => decoration.gradient)
-        .whereType<LinearGradient>();
-    expect(gradients.last.colors.last, Colors.black);
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('artist portrait darkens gently until the very last edge',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(child: MaterialApp(
         theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
         home: Scaffold(
           body: LokalDetailHeader(
             title: 'Artist',
             artwork: const ColoredBox(color: Colors.brown),
             isArtist: true,
-            background: Colors.black,
+            background: Colors.white,
             onArtworkTap: () {},
             onBack: () {},
             onMore: () {},
@@ -134,7 +81,7 @@ void main() {
             onlineEnabled: false,
           ),
         ),
-      ),
+      )),
     );
     await tester.pump();
     final gradients = tester.widgetList<DecoratedBox>(
@@ -152,7 +99,7 @@ void main() {
     expect(scrim.stops, [0, .68, .93, 1]);
     expect(scrim.colors.first.a, lessThan(.15));
     expect(scrim.colors[2].a, lessThan(.20));
-    expect(scrim.colors.last.a, lessThan(1));
+    expect(scrim.colors.last, Colors.black.withValues(alpha: .45));
     expect(tester.takeException(), isNull);
   });
 
@@ -163,7 +110,7 @@ void main() {
     addTearDown(tester.view.reset);
     var taps = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(child: MaterialApp(
         theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
         home: Scaffold(
           body: LokalDetailHeader(
@@ -178,7 +125,7 @@ void main() {
             onlineEnabled: false,
           ),
         ),
-      ),
+      )),
     );
     await tester.pump();
     await tester.tapAt(const Offset(195, 230));
