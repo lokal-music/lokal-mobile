@@ -25,7 +25,12 @@ void main() {
 
   testWidgets('push and pop animate both foreground and previous page',
       (tester) async {
-    final primary = AnimationController(vsync: tester, value: 0);
+    final primary = AnimationController(
+      vsync: tester,
+      duration: LokalPageMotion.duration,
+      reverseDuration: LokalPageMotion.reverseDuration,
+      value: 0,
+    );
     final secondary = AnimationController(vsync: tester, value: 0);
     addTearDown(primary.dispose);
     addTearDown(secondary.dispose);
@@ -71,6 +76,46 @@ void main() {
     await tester.pump();
     expect(foreground(), greaterThan(.9),
         reason: 'Back must carry the page to the far right, not 34% across');
+  });
+
+  testWidgets('interrupting push with Back preserves position', (tester) async {
+    final primary = AnimationController(
+      vsync: tester,
+      value: 0,
+      duration: LokalPageMotion.duration,
+      reverseDuration: LokalPageMotion.reverseDuration,
+    );
+    final secondary = AnimationController(vsync: tester, value: 0);
+    addTearDown(primary.dispose);
+    addTearDown(secondary.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => const LokalPageMotion().buildTransitions<void>(
+          MaterialPageRoute<void>(builder: (_) => const SizedBox()),
+          context, primary, secondary,
+          const SizedBox(key: Key('detail-midflight')),
+        ),
+      ),
+    ));
+    primary.forward(from: 0);
+    primary.value = .45;
+    await tester.pump();
+    final before = tester.widget<FractionalTranslation>(
+      find.byType(FractionalTranslation).last,
+    ).translation.dx;
+    primary.reverse(from: .45);
+    await tester.pump();
+    final after = tester.widget<FractionalTranslation>(
+      find.byType(FractionalTranslation).last,
+    ).translation.dx;
+    expect((after - before).abs(), lessThan(.001),
+      reason: 'Back cannot jump from short push to full-width exit');
+    primary.value = 0;
+    await tester.pump();
+    final end = tester.widget<FractionalTranslation>(
+      find.byType(FractionalTranslation).last,
+    ).translation.dx;
+    expect(end, closeTo(1.0, .001));
   });
 
   test('library routes retain Material system-Back and Hero support', () {
