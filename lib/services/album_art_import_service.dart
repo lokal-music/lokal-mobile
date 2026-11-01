@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/utils/string_sort_utils.dart';
+import '../core/utils/artist_credits.dart' show splitArtistCredits;
 import '../data/repositories/song_repository.dart';
 import '../models/song.dart';
 import 'album_art_service.dart';
@@ -50,7 +51,7 @@ List<AlbumArtCandidate> relevantAlbumArtwork({
   required List<AlbumArtCandidate> candidates,
 }) {
   String normalize(String value) => value.toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ')
       .trim();
   final title = normalize(album);
   final lead = normalize(artist);
@@ -59,15 +60,17 @@ List<AlbumArtCandidate> relevantAlbumArtwork({
     final candidateTitle = normalize(candidate.title);
     final candidateArtist = normalize(candidate.artist);
     final titleExact = candidateTitle == title;
-    final titleVariant = title.length >= 5 &&
-        (candidateTitle.startsWith('$title ') ||
-         title.startsWith('$candidateTitle '));
+    final suffix = candidateTitle.startsWith('$title ')
+        ? candidateTitle.substring(title.length).trim() : '';
+    final titleVariant = suffix.isNotEmpty &&
+        RegExp(r'^(?:(?:super )?deluxe|expanded|anniversary|remaster(?:ed)?|edition|bonus|special|digital|reissue)(?: .+)?$')
+            .hasMatch(suffix);
     if (!titleExact && !titleVariant) return -1;
     final artistExact = candidateArtist == lead;
-    final artistCompatible = lead.length >= 4 &&
-        candidateArtist.isNotEmpty &&
-        (candidateArtist.contains(lead) || lead.contains(candidateArtist));
-    if (lead.isNotEmpty && !artistExact && !artistCompatible) return -1;
+    final artistCredited = splitArtistCredits(candidate.artist).any(
+      (credit) => normalize(credit) == lead,
+    );
+    if (lead.isNotEmpty && !artistExact && !artistCredited) return -1;
     return (titleExact ? 100 : 50) + (artistExact ? 40 : 15);
   }
   final scored = [
