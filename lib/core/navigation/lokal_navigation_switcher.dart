@@ -139,7 +139,10 @@ class _LokalNavigationSwitcherState extends State<LokalNavigationSwitcher>
               child: RepaintBoundary(
                 child: TickerMode(
                   enabled: key == current,
-                  child: _visited[key]!,
+                  child: ExcludeFocus(
+                    excluding: key != current,
+                    child: _visited[key]!,
+                  ),
                 ),
               ),
               builder: (context, page) {
