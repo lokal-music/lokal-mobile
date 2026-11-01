@@ -192,8 +192,7 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
       (previous, next) {
         if (previous != ConnectivityStatus.online &&
             next == ConnectivityStatus.online) {
-          _lastDesktopLyricsTrack = null;
-          _onDesktopLyricsTrack();
+          unawaited(_retryDesktopLyricsAfterReconnect());
         }
       },
     );
@@ -297,6 +296,7 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
   }
 
   String? _lastDesktopLyricsTrack;
+
   void _onDesktopLyricsTrack() {
     final song = _player.currentSongNotifier.value;
     if (song == null || song.sourceType != 'lokal') {
@@ -306,10 +306,36 @@ class _KonnektedRuntimeState extends ConsumerState<KonnektedRuntime>
     final key = '${song.remoteServerId}:${song.remoteId}';
     if (_lastDesktopLyricsTrack == key) return;
     _lastDesktopLyricsTrack = key;
-    unawaited(() async {
-      await LokalDesktopSource.instance.syncPlayingDesktopLyrics(song);
+    unawaited(_requestDesktopLyrics(song, key));
+  }
+
+  Future<void> _retryDesktopLyricsAfterReconnect() async {
+    final song = _player.currentSongNotifier.value;
+    if (song == null || song.sourceType != 'lokal') return;
+    final key = '${song.remoteServerId}:${song.remoteId}';
+    _lastDesktopLyricsTrack = key;
+    // If an earlier attempt is still in-flight, coalescing waits for it.
+    // An unsuccessful result is retried *after* that attempt has settled,
+    // ensuring reconnection is not silently lost.
+    await _requestDesktopLyrics(song, key, retryAfterFailure: true);
+  }
+
+  Future<void> _requestDesktopLyrics(
+    Song song,
+    String key, {
+    bool retryAfterFailure = false,
+  }) async {
+    var success = await LokalDesktopSource.instance.syncPlayingDesktopLyrics(song);
+    if (!success && retryAfterFailure) {
+      success = await LokalDesktopSource.instance.syncPlayingDesktopLyrics(song);
+    }
+    if (!mounted) return;
+    if (success) {
+      _lastDesktopLyricsTrack = key;
       LyricsPlaybackPrefetch.instance.desktopLyricsArrived(song);
-    }());
+    } else if (_lastDesktopLyricsTrack == key) {
+      _lastDesktopLyricsTrack = null;
+    }
   }
 
   void _onOnlinePlaybackError() {
