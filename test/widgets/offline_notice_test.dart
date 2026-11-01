@@ -125,6 +125,22 @@ void main() {
     expect(container.read(connectivityProvider), ConnectivityStatus.offline);
   });
 
+  testWidgets('reconnection confirmation appears after offline notice expired',
+      (tester) async {
+    await tester.pumpWidget(_host(connectivity));
+    await _goOffline(tester, connectivity);
+    await tester.pump(const Duration(seconds: 5));
+    await _settle(tester);
+    expect(_barHeight(tester), 0);
+    connectivity.emit([ConnectivityResult.wifi]);
+    await _settle(tester);
+    expect(find.textContaining('Back online'), findsOneWidget);
+    expect(_barHeight(tester), greaterThan(0));
+    await tester.pump(const Duration(seconds: 2));
+    await _settle(tester);
+    expect(_barHeight(tester), 0);
+  });
+
   testWidgets('shows a full-width bar at the bottom while offline', (
     tester,
   ) async {
