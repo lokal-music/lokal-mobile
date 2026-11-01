@@ -129,7 +129,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final routeAnimation = ModalRoute.of(context)?.animation;
-    if (identical(routeAnimation, _entryAnimation)) return;
+    if (identical(routeAnimation, _entryAnimation) &&
+        (routeAnimation != null || _relatedReady)) return;
     _entryAnimation?.removeStatusListener(_onEntryStatus);
     _entryAnimation = routeAnimation;
     if (routeAnimation == null ||
