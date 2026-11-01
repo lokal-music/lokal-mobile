@@ -14,6 +14,7 @@ class LokalDetailHeader extends StatelessWidget {
     required this.title,
     required this.artwork,
     required this.isArtist,
+    this.fixedArtwork = false,
     required this.background,
     required this.onBack,
     required this.onArtworkTap,
@@ -33,6 +34,9 @@ class LokalDetailHeader extends StatelessWidget {
   final String? metadata;
   final String? artworkHeroTag;
   final bool isArtist;
+  /// When true, the artwork is painted behind the entire scroll view rather
+  /// than inside this moving header. The header remains transparent.
+  final bool fixedArtwork;
   final Color background;
   final VoidCallback onBack, onOnline, onMore, onArtworkTap;
   final bool onlineEnabled;
@@ -52,9 +56,10 @@ class LokalDetailHeader extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.8);
     final topInset = MediaQuery.paddingOf(context).top;
+    final fullBleed = isArtist || fixedArtwork;
     final artSize = (size.width * (size.width > 620 ? .36 : .63))
         .clamp(184.0, 314.0);
-    final heroHeight = isArtist
+    final heroHeight = fullBleed
         ? artistHeight(context)
         : artSize + 268 + topInset + (scale - 1) * 230;
 
@@ -63,7 +68,7 @@ class LokalDetailHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          DecoratedBox(
+          if (!fixedArtwork) DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 center: isArtist
@@ -74,7 +79,17 @@ class LokalDetailHeader extends StatelessWidget {
               ),
             ),
           ),
-          if (isArtist) ...[
+          if (fixedArtwork)
+            GestureDetector(
+              onTap: onArtworkTap,
+              behavior: HitTestBehavior.opaque,
+              child: Semantics(
+                button: true,
+                label: lokalText('View artwork'),
+                child: const SizedBox.expand(),
+              ),
+            )
+          else if (isArtist) ...[
             GestureDetector(
               onTap: onArtworkTap,
               behavior: HitTestBehavior.opaque,
@@ -170,7 +185,7 @@ class LokalDetailHeader extends StatelessWidget {
                               dimension: 21,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: isArtist ? Colors.white : t.text,
+                                color: fullBleed ? Colors.white : t.text,
                               ),
                             )
                           : Icon(
@@ -210,7 +225,7 @@ class LokalDetailHeader extends StatelessWidget {
                   style: LokalTheme.label(
                     t,
                     size: 11,
-                    color: isArtist
+                    color: fullBleed
                         ? Colors.white.withValues(alpha: .78)
                         : t.muted,
                   ),
@@ -224,12 +239,12 @@ class LokalDetailHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: LokalTheme.sans,
-                      fontSize: isArtist ? 43 : 32,
+                      fontSize: fullBleed ? 43 : 32,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1.35,
                       height: 1.06,
                       color: isArtist ? Colors.white : t.text,
-                      shadows: isArtist
+                      shadows: fullBleed
                           ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
                           : null,
                     ),
@@ -248,7 +263,7 @@ class LokalDetailHeader extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isArtist ? Colors.white70 : t.muted,
+                      color: fullBleed ? Colors.white70 : t.muted,
                     ),
                   ),
                 ],
@@ -269,6 +284,6 @@ class LokalDetailHeader extends StatelessWidget {
     semanticLabel: label,
     onPressed: onTap,
     tint: Colors.black.withValues(alpha: .16),
-    child: Icon(icon, color: isArtist ? Colors.white : context.lokal.text, size: 23),
+    child: Icon(icon, color: isArtist || fixedArtwork ? Colors.white : context.lokal.text, size: 23),
   );
 }
