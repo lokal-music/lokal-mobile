@@ -14,6 +14,7 @@ class LokalDetailHeader extends StatelessWidget {
     required this.artwork,
     required this.isArtist,
     this.fixedArtwork = false,
+    this.controlsInOverlay = false,
     required this.background,
     required this.onBack,
     required this.onArtworkTap,
@@ -40,6 +41,8 @@ class LokalDetailHeader extends StatelessWidget {
   /// When true, the artwork is painted behind the entire scroll view rather
   /// than inside this moving header. The header remains transparent.
   final bool fixedArtwork;
+  /// True when the page draws its top controls above the scroll view.
+  final bool controlsInOverlay;
   final Color background;
   final VoidCallback onBack, onOnline, onMore, onArtworkTap;
   final bool onlineEnabled;
@@ -155,7 +158,7 @@ class LokalDetailHeader extends StatelessWidget {
                 ),
               ),
             ),
-          Positioned(
+          if (!controlsInOverlay) Positioned(
             left: 20,
             right: 20,
             top: 0,
