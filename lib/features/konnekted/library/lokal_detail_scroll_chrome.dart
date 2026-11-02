@@ -13,7 +13,7 @@ import 'package:flick/widgets/lokal/lokal_glass.dart';
 @visibleForTesting
 double detailTopFrostOpacity(double offset, double heroHeight) {
   if (heroHeight <= 0 || offset <= 0) return 0;
-  final progress = ((offset / heroHeight - .55) / .30).clamp(0.0, 1.0);
+  final progress = ((offset / heroHeight - .55) / .30).clamp(0.0, 1.0).toDouble();
   return progress * progress * (3 - 2 * progress);
 }
 
