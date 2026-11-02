@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:isar_community/isar.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../core/utils/audio_metadata_utils.dart';
 import '../../core/utils/artist_credits.dart';
@@ -242,6 +243,29 @@ Map<ListeningRecapPeriod, ListeningRecap> _computeListeningRecaps(
     );
   }
   return result;
+}
+
+/// The same pure aggregator serves production and regression tests. A
+/// forced worker run verifies that all recap objects remain isolate-safe.
+@visibleForTesting
+Future<Map<ListeningRecapPeriod, ListeningRecap>>
+aggregateListeningRecapsFromEntries({
+  required List<RecentlyPlayedEntry> entries,
+  required Map<ListeningRecapPeriod, ListeningRecapRange> ranges,
+  required String unknownArtist,
+  required String unknownAlbum,
+  bool forceWorker = false,
+}) async {
+  final request = _RecapComputeRequest(
+    entries: entries,
+    ranges: ranges,
+    unknownArtist: unknownArtist,
+    unknownAlbum: unknownAlbum,
+  );
+  if (forceWorker || entries.length >= 96) {
+    return Isolate.run(() => _computeListeningRecaps(request));
+  }
+  return _computeListeningRecaps(request);
 }
 
 /// Parse remote-history envelopes away from Flutter's animation isolate.
@@ -505,19 +529,15 @@ class RecentlyPlayedRepository {
       endExclusive: latestEndExclusive,
     );
 
-    final request = _RecapComputeRequest(
+    // Large libraries can have tens of thousands of events in a yearly
+    // recap. Aggregating all three periods on the UI isolate stalls an
+    // entering tab even though the Isar query itself is asynchronous.
+    return aggregateListeningRecapsFromEntries(
       entries: mappedEntries,
       ranges: ranges,
       unknownArtist: l10n.unknownArtist,
       unknownAlbum: l10n.unknownAlbum,
     );
-    // Large libraries can have tens of thousands of events in a yearly
-    // recap. Aggregating all three periods on the UI isolate stalls an
-    // entering tab even though the Isar query itself is asynchronous.
-    if (mappedEntries.length >= 96) {
-      return Isolate.run(() => _computeListeningRecaps(request));
-    }
-    return _computeListeningRecaps(request);
   }
 
   /// Build a Wrapped-style recap for a single period.
