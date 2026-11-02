@@ -38,7 +38,7 @@ class LibraryJobStatus {
           ? ''
           : cancelled
           ? ' · Stopped'
-          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated portraits updated' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
+          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated portraits refreshed' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
 }
 
 /// Explicit, serial metadata jobs. They update the metadata service's disk
