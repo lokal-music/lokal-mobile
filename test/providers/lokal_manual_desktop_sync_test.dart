@@ -65,6 +65,15 @@ void main() {
     expect(source, contains('final local = entity == null'));
   });
 
+  test('explicit sync reprojects already-pulled desktop history after catalogue', () {
+    final sync = File('lib/services/link/link_sync_coordinator.dart')
+        .readAsStringSync();
+    expect(sync, contains('await _reconcileRecentDesktopHistory();'));
+    expect(sync, contains('.sortByPlayedAtDesc()'));
+    expect(sync, contains('.limit(500)'));
+    expect(sync, contains('await RecentlyPlayedRepository().recordLinkPlays(projected);'));
+  });
+
   test('automatic stats path is bounded and excludes catalog operations', () {
     final coordinator = File('lib/services/link/link_sync_coordinator.dart')
         .readAsStringSync();
