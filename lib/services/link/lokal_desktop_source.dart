@@ -69,6 +69,50 @@ class LokalDesktopSource extends NetworkSourceService {
     return capabilities['contentMatching'] == true;
   }
 
+  /// Only look up a desktop file's size when its metadata is opened.
+  /// Measuring every remote file during a catalogue import is especially
+  /// expensive for NAS libraries; this paired endpoint never streams audio.
+  Future<int?> linkedFileSize(Song song) async {
+    if (song.sourceType != 'lokal' ||
+        song.remoteId == null ||
+        song.remoteServerId == null ||
+        !Database.isInitialized) return null;
+    try {
+      final server = await Database.networkServers.get(song.remoteServerId!);
+      if (server == null) return null;
+      final credentials = await _credentials(server);
+      final response = await http
+          .get(
+            credentials.origin.replace(
+              pathSegments: [
+                'api', 'remote', 'library', 'file-size', song.remoteId!,
+              ],
+            ),
+            headers: _headers(credentials),
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) return null;
+      final bytes = (jsonDecode(response.body) as Map)['bytes'];
+      if (bytes is! int || bytes <= 0) return null;
+      // Make the result available offline on subsequent visits. Identity is
+      // checked again after the network round-trip to avoid stale writes.
+      final numericId = int.tryParse(song.id);
+      if (numericId != null) {
+        await Database.instance.writeTxn(() async {
+          final row = await Database.songs.get(numericId);
+          if (row == null ||
+              row.remoteId != song.remoteId ||
+              row.remoteServerId != song.remoteServerId) return;
+          row.fileSize = bytes;
+          await Database.songs.put(row);
+        });
+      }
+      return bytes;
+    } on Object {
+      return null;
+    }
+  }
+
   /// Run only for metadata misses. Content URIs are staged with the same grant
   /// as uploads; a filesystem path/filename is never used as a fingerprint.
   Future<Map<String, dynamic>?> originalFingerprint(
