@@ -3,6 +3,10 @@ import 'package:flick/core/utils/artist_credits.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
@@ -53,6 +57,13 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
     } catch (_) {
       // Missing metadata must not prevent artist lists from rendering.
     }
+  }
+
+  /// The artist page can discover and persist a Spotify-only artist portrait
+  /// after the list's initial Isar hydration. Publish it immediately to rows.
+  void publishSavedPortrait(String name, String path) {
+    if (!ref.mounted || path.isEmpty) return;
+    state = {...state, key(name): path};
   }
 
   void warm(List<Song> songs) {
@@ -206,7 +217,7 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
     if (!force && !_isCurrent(artistKey, generation)) return false;
     if (force && (_forcedGeneration[artistKey] ?? 0) != generation) return false;
 
-    final cachedPath = file.file.path;
+    final cachedPath = await persistArtistPortraitFile(name, file.file.path);
     // Publish only after saving the replacement. Readers retain their old
     // portrait if the download or database transaction fails.
     var persisted = false;
@@ -236,6 +247,30 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
     }
     return true;
   }
+}
+
+/// Unlike flutter_cache_manager's pruneable cache, support-directory files
+/// survive app force-close and normal HTTP-cache eviction. Use the content hash
+/// as the filename so a refreshed image changes Flutter's FileImage identity.
+Future<String> persistArtistPortraitFile(String artist, String sourcePath) async {
+  final source = File(sourcePath);
+  if (!await source.exists()) return sourcePath;
+  final bytes = await source.readAsBytes();
+  final nameHash = sha256.convert(utf8.encode(ArtistMetadata.key(artist)));
+  final contentHash = sha256.convert(bytes);
+  final directory = Directory(
+    '${(await getApplicationSupportDirectory()).path}/artist_portraits',
+  );
+  await directory.create(recursive: true);
+  final target = File('${directory.path}/$nameHash-$contentHash.img');
+  if (!await target.exists()) {
+    final temporary = File(
+      '${target.path}.tmp-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    await temporary.writeAsBytes(bytes, flush: true);
+    await temporary.rename(target.path);
+  }
+  return target.path;
 }
 
 /// Unique cache identity for manual portrait refreshes. The URL alone would
