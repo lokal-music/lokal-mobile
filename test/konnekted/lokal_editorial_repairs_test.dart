@@ -10,6 +10,9 @@ import 'package:flick/features/konnekted/konnekted_data.dart';
 import 'package:flick/features/konnekted/konnekted_dock.dart';
 import 'package:flick/features/konnekted/konnekted_shell.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_header.dart';
+import 'package:flick/features/konnekted/library/lokal_artwork_reveal.dart';
+import 'package:flick/features/library_jobs/artist_metadata.dart';
+import 'package:flick/widgets/common/cached_image_widget.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_fixed_backdrop.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_scroll_chrome.dart';
 import 'package:flick/features/konnekted/library/lokal_genres.dart';
@@ -22,6 +25,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _TestArtistMetadata extends ArtistMetadata {
+  _TestArtistMetadata(this.portraits);
+  final Map<String, String> portraits;
+
+  @override
+  Map<String, String> build() => portraits;
+}
 
 class _ReducedMotion implements ui.AccessibilityFeatures {
   @override
@@ -99,8 +110,12 @@ Widget _app(
   Widget child, {
   List<Song> library = const [],
   PlayerNotifier Function()? playerFactory,
+  Map<String, String> artistPortraits = const {},
 }) => ProviderScope(
   overrides: [
+    artistMetadataProvider.overrideWith(
+      () => _TestArtistMetadata(artistPortraits),
+    ),
     konnektedLibraryProvider.overrideWithValue(AsyncData(library)),
     playerProvider.overrideWith(playerFactory ?? _Player.new),
     playerServiceProvider.overrideWithValue(_PlayerService()),
@@ -292,6 +307,95 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'artist hero never briefly shows a featured album cover',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      const song = Song(
+        id: 'artist-local-song',
+        title: 'Top Song',
+        artist: 'Artist',
+        album: 'Featured album',
+        albumArt: '/tmp/featured_album_cover_not_a_portrait.jpg',
+        duration: Duration(minutes: 3),
+        fileType: 'FLAC',
+      );
+      final artistPage = LokalMusicDetailPage.artist(
+        name: 'Artist',
+        localSongs: const [song],
+      );
+
+      // Before metadata is available, the hero must be neutral. Even when
+      // the artist has a known album cover, it may never fill the hero.
+      await tester.pumpWidget(_app(artistPage, library: const [song]));
+      await tester.pump();
+      final hero = find.byType(LokalArtworkReveal);
+      expect(hero, findsOneWidget);
+      final initialImages = tester.widgetList<CachedImageWidget>(
+        find.descendant(of: hero, matching: find.byType(CachedImageWidget)),
+      );
+      expect(initialImages, isEmpty);
+      expect(
+        tester.widget<LokalArtworkReveal>(hero).identity,
+        'artist:artist:',
+      );
+      expect(tester.takeException(), isNull);
+
+      // Once an actual artist portrait is provided, it is the only source
+      // allowed in the hero and the featured album remains excluded.
+      const portrait = '/tmp/verified_artist_portrait.png';
+      await tester.pumpWidget(_app(
+        artistPage,
+        library: const [song],
+        artistPortraits: const {'artist': portrait},
+      ));
+      await tester.pump();
+      final updatedHero = find.byType(LokalArtworkReveal);
+      final images = tester.widgetList<CachedImageWidget>(
+        find.descendant(of: updatedHero, matching: find.byType(CachedImageWidget)),
+      ).toList();
+      expect(images, hasLength(1));
+      expect(images.single.imagePath, portrait);
+      expect(images.single.audioSourcePath, isNull);
+      expect(
+        tester.widget<LokalArtworkReveal>(updatedHero).identity,
+        'artist:artist:$portrait',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('album hero retains album-cover fallback', (tester) async {
+    const song = Song(
+      id: 'album-song',
+      title: 'Track',
+      artist: 'Artist',
+      album: 'Album',
+      albumArt: '/tmp/local_album_cover.jpg',
+      duration: Duration(minutes: 4),
+      fileType: 'FLAC',
+    );
+    await tester.pumpWidget(_app(
+      LokalMusicDetailPage.album(
+        title: 'Album',
+        artist: 'Artist',
+        localSongs: const [song],
+      ),
+      library: const [song],
+    ));
+    await tester.pump();
+    final hero = find.byType(LokalArtworkReveal);
+    final images = tester.widgetList<CachedImageWidget>(
+      find.descendant(of: hero, matching: find.byType(CachedImageWidget)),
+    );
+    expect(images.map((image) => image.imagePath),
+        contains('/tmp/local_album_cover.jpg'));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('artist content keeps the theme background when scrolled',
       (tester) async {
