@@ -48,8 +48,8 @@ Uint8List? linkHistoryCoverJpeg(Uint8List source) {
     final resized = scale > 384
         ? img.copyResize(
             decoded,
-            width: (decoded.width * 384 / scale).round().clamp(1, 384),
-            height: (decoded.height * 384 / scale).round().clamp(1, 384),
+            width: (decoded.width * 384 / scale).round().clamp(1, 384).toInt(),
+            height: (decoded.height * 384 / scale).round().clamp(1, 384).toInt(),
           )
         : decoded;
     final encoded = Uint8List.fromList(img.encodeJpg(resized, quality: 72));
@@ -191,17 +191,22 @@ class LokalDesktopSource extends NetworkSourceService {
         .sortByPlayedAtDesc()
         .limit(100)
         .findAll();
+    final events = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      if (row.source != 'phone') continue;
+      try {
+        events.add({
+          'source': row.source,
+          'track_key': row.trackKey,
+          'track': jsonDecode(row.trackJson),
+        });
+      } on FormatException {
+        // A malformed legacy journal row cannot break full library sync.
+      }
+    }
     await uploadHistoryArtwork(
       credentials,
-      [
-        for (final row in rows)
-          if (row.source == 'phone')
-            {
-              'source': row.source,
-              'track_key': row.trackKey,
-              'track': jsonDecode(row.trackJson),
-            },
-      ],
+      events,
       maxCovers: maxCovers,
     );
   }
