@@ -697,6 +697,7 @@ class RecentlyPlayedRepository {
     }
 
     final songStats = <String, _SongRecapAccumulator>{};
+    final primaryArtists = <String, String>{};
     final artistStats = <String, _ArtistRecapAccumulator>{};
     final albumStats = <String, _AlbumRecapAccumulator>{};
     final playedDays = <DateTime>{};
@@ -718,15 +719,22 @@ class RecentlyPlayedRepository {
 
       // A collaboration is a single play by its lead artist, not a new
       // composite artist (which has no corresponding profile portrait).
-      final primaryArtist = primaryArtistCredit(song.artist);
+      // Reuse parsed credits across repeated plays of the same song. Recaps
+      // can span thousands of listens but only hundreds of distinct credits.
+      final primaryArtist = primaryArtists.putIfAbsent(
+        song.artist,
+        () => primaryArtistCredit(song.artist),
+      );
       final artistKey = primaryArtist.isNotEmpty
           ? primaryArtist
-          : (primaryArtistCredit(song.albumArtist).isNotEmpty
-              ? primaryArtistCredit(song.albumArtist)
-              : l10n.unknownArtist);
+          : primaryArtists.putIfAbsent(
+              song.albumArtist ?? '',
+              () => primaryArtistCredit(song.albumArtist),
+            );
+      final resolvedArtist = artistKey.isNotEmpty ? artistKey : l10n.unknownArtist;
       final artistAccumulator = artistStats.putIfAbsent(
-        artistKey,
-        () => _ArtistRecapAccumulator(artistKey),
+        resolvedArtist,
+        () => _ArtistRecapAccumulator(resolvedArtist),
       );
       artistAccumulator.addPlay(song, entry.playedAt);
 
@@ -735,7 +743,7 @@ class RecentlyPlayedRepository {
           : l10n.unknownAlbum;
       final albumArtist = (song.albumArtist?.trim().isNotEmpty ?? false)
           ? song.albumArtist!.trim()
-          : artistKey;
+          : resolvedArtist;
       final albumKey = '$albumArtist::$albumName';
       final albumAccumulator = albumStats.putIfAbsent(
         albumKey,
