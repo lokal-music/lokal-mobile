@@ -142,8 +142,8 @@ class LokalDetailFloatingControls extends StatelessWidget {
                 semanticLabel: lokalText('Back'),
                 tint: Colors.black.withValues(alpha: .16),
                 onPressed: onBack,
-                child: const Icon(Icons.arrow_back_rounded,
-                    color: Colors.white, size: 23),
+                child: Icon(Icons.arrow_back_rounded,
+                    color: t.text, size: 23),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -189,7 +189,7 @@ class LokalDetailFloatingControls extends StatelessWidget {
                         onlineEnabled
                             ? Icons.language_rounded
                             : Icons.language_outlined,
-                        color: onlineEnabled ? t.accent : Colors.white,
+                        color: onlineEnabled ? t.accent : t.text,
                         size: 23,
                       ),
               ),
@@ -198,8 +198,8 @@ class LokalDetailFloatingControls extends StatelessWidget {
                 semanticLabel: lokalText('More'),
                 onPressed: onMore,
                 tint: Colors.black.withValues(alpha: .16),
-                child: const Icon(Icons.more_horiz_rounded,
-                    color: Colors.white, size: 23),
+                child: Icon(Icons.more_horiz_rounded,
+                    color: t.text, size: 23),
               ),
             ],
           ),
