@@ -315,13 +315,14 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       if (previous?.artPath?.isNotEmpty == true &&
           await File(previous!.artPath!).exists()) {
         // Migrate existing cached images to permanent storage when revisited.
+        final savedRow = previous!;
         final durable = await persistArtistPortraitFile(
-          widget.artist, previous.artPath!,
+          widget.artist, savedRow.artPath!,
         );
-        if (durable != previous.artPath) {
-          previous.artPath = durable;
+        if (durable != savedRow.artPath) {
+          savedRow.artPath = durable;
           await Database.instance.writeTxn(
-            () => Database.artists.put(previous),
+            () => Database.artists.put(savedRow),
           );
         }
         if (!mounted) return;
