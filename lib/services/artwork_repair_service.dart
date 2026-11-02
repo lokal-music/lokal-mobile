@@ -201,7 +201,6 @@ class ArtworkRepairService {
       final songs = await _repository.getAllSongs();
       final eligible = <String, List<Song>>{};
       for (final song in songs) {
-        final path = song.filePath;
         if (!isRepairableLocalSource(song) ||
             _importer.isCustomArtworkPath(song.albumArt) ||
             !canRepairAlbum(song)) continue;
