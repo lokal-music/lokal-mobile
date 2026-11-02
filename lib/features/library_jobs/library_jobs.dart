@@ -3,6 +3,7 @@ import 'dart:async';
 import 'artist_metadata.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flick/features/music_videos/music_video_providers.dart';
 import 'package:flick/features/konnekted/library/lokal_library_groups.dart';
 import 'package:flick/features/konnekted/library/artist_follow_store.dart';
@@ -39,6 +40,26 @@ class LibraryJobStatus {
           : cancelled
           ? ' · Stopped'
           : ' · Finished'}${job == LibraryJob.artists ? ' · $updated portraits refreshed' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
+}
+
+/// Predictable manual-refresh sequence, including followed artists without
+/// local tracks. Preserve the library spelling on duplicate credits.
+@visibleForTesting
+List<String> alphabeticalArtistRefreshNames(
+  Iterable<String> libraryNames,
+  Iterable<String> followedNames,
+) {
+  final unique = <String, String>{};
+  for (final raw in [...libraryNames, ...followedNames]) {
+    final name = raw.trim();
+    final key = recommendationKey(name);
+    if (key.isNotEmpty) unique.putIfAbsent(key, () => name);
+  }
+  return unique.values.toList()
+    ..sort((a, b) {
+      final order = a.toLowerCase().compareTo(b.toLowerCase());
+      return order != 0 ? order : a.compareTo(b);
+    });
 }
 
 /// Explicit, serial metadata jobs. They update the metadata service's disk
@@ -94,17 +115,14 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
       }
       return;
     }
-    final artistNames = [
-      for (final artist in lokalArtists(songs)) artist.name,
-    ];
-    // The Artists list also contains imported/followed artists that do not
-    // have a track in the local library. Refresh their visible portraits too.
-    if (job == LibraryJob.artists) {
-      final seen = artistNames.map(recommendationKey).toSet();
-      for (final name in ArtistFollowStore.instance.knownNames) {
-        if (seen.add(recommendationKey(name))) artistNames.add(name);
-      }
-    }
+    // Merge before sorting: imported Spotify/followed artists otherwise ran
+    // after every library artist, making manual refresh appear out of order.
+    final artistNames = alphabeticalArtistRefreshNames(
+      lokalArtists(songs).map((artist) => artist.name),
+      job == LibraryJob.artists
+          ? ArtistFollowStore.instance.knownNames
+          : const <String>[],
+    );
     _cancel = false;
     var done = 0, failed = 0, updated = 0;
     void publish(bool running) {
