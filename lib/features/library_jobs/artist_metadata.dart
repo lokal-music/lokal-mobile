@@ -253,12 +253,14 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
 Future<String> persistArtistPortraitFile(String artist, String sourcePath) async {
   final source = File(sourcePath);
   if (!await source.exists()) return sourcePath;
-  final bytes = await source.readAsBytes();
-  final nameHash = sha256.convert(utf8.encode(ArtistMetadata.key(artist)));
-  final contentHash = sha256.convert(bytes);
   final directory = Directory(
     '${(await getApplicationSupportDirectory()).path}/artist_portraits',
   );
+  // Already promoted: avoid re-reading and hashing the full image.
+  if (source.path.startsWith('${directory.path}/')) return source.path;
+  final bytes = await source.readAsBytes();
+  final nameHash = sha256.convert(utf8.encode(ArtistMetadata.key(artist)));
+  final contentHash = sha256.convert(bytes);
   await directory.create(recursive: true);
   final target = File('${directory.path}/$nameHash-$contentHash.img');
   if (!await target.exists()) {
