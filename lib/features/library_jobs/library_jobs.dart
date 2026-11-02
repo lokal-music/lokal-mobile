@@ -149,6 +149,35 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
 
     publish(true);
     try {
+      if (job == LibraryJob.releases && !_cancel && ref.mounted) {
+        // Upgrade existing covers first, so large libraries don't wait for
+        // hundreds of optional Apple Music release lookups before seeing a
+        // single improved image. Album metadata refresh follows afterward.
+        final artistDone = done;
+        final artistFailures = failed;
+        final repair = ArtworkRepairService();
+        _activeRepair = repair;
+        try {
+          final result = await repair.refresh(onProgress: (progress) {
+            total = artistNames.length + progress.total;
+            done = artistDone + progress.checked;
+            failed = artistFailures + progress.failed;
+            updated = progress.updated;
+            publish(true);
+          });
+          if (result.updated > 0 && ref.mounted) {
+            // The list and album pages use live Song objects, not a lookup
+            // cache; invalidate them after durable cover paths are saved.
+            ref.invalidate(songsProvider);
+            ref.invalidate(songsByAlbumProvider);
+          }
+        } catch (_) {
+          failed++;
+        } finally {
+          _activeRepair = null;
+          repair.dispose();
+        }
+      }
       for (final artistName in artistNames) {
         if (_cancel || !ref.mounted) break;
         try {
@@ -193,35 +222,6 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
         // An unavailable catalogue entry must not abort the user's refresh.
         if (!_cancel) {
           await Future<void>.delayed(const Duration(milliseconds: 500));
-        }
-      }
-      if (job == LibraryJob.releases && !_cancel && ref.mounted) {
-        // Refreshing Apple's release cache alone does not alter existing
-        // pixelated album covers. Inspect and upgrade the local album artwork
-        // explicitly, without overwriting a user's manually chosen covers.
-        final artistDone = done;
-        final artistFailures = failed;
-        final repair = ArtworkRepairService();
-        _activeRepair = repair;
-        try {
-          final result = await repair.refresh(onProgress: (progress) {
-            total = artistNames.length + progress.total;
-            done = artistDone + progress.checked;
-            failed = artistFailures + progress.failed;
-            updated = progress.updated;
-            publish(true);
-          });
-          if (result.updated > 0 && ref.mounted) {
-            // The list and album pages use live Song objects, not a lookup
-            // cache; invalidate them after durable cover paths are saved.
-            ref.invalidate(songsProvider);
-            ref.invalidate(songsByAlbumProvider);
-          }
-        } catch (_) {
-          failed++;
-        } finally {
-          _activeRepair = null;
-          repair.dispose();
         }
       }
     } finally {
