@@ -597,7 +597,9 @@ class LokalDesktopSource extends NetworkSourceService {
 
       entity.remoteId = id;
       entity.remoteServerId = server.id;
-      entity.albumArtPath = artwork;
+      // A temporary offline/HTTP failure must not erase a previously
+      // downloaded album cover. The old marker can still be resolved later.
+      entity.albumArtPath = artwork ?? entity.albumArtPath;
       entity.sampleRate =
           (track['sample_rate'] as num?)?.toInt() ?? entity.sampleRate;
       entity.bitDepth =
