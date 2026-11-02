@@ -28,6 +28,8 @@ import 'package:flick/l10n/l10n.dart';
 import 'package:flick/models/song.dart';
 import 'package:flick/providers/favorites_provider.dart';
 import 'package:flick/providers/player_provider.dart';
+import 'package:flick/providers/app_preferences_provider.dart';
+import 'package:flick/services/apple_music/apple_artist_visuals_service.dart';
 import 'package:flick/providers/songs_provider.dart';
 import 'package:flick/widgets/common/cached_image_widget.dart';
 import 'package:flick/widgets/lokal/lokal_glass.dart';
@@ -37,6 +39,7 @@ import 'package:flick/features/link/lokal_ghost_availability.dart';
 
 import 'artist_follow_store.dart';
 import 'lokal_artwork_reveal.dart';
+import 'lokal_artist_motion_backdrop.dart';
 import 'lokal_detail_header.dart';
 import 'lokal_detail_fixed_backdrop.dart';
 import 'lokal_library_groups.dart';
@@ -108,6 +111,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       _followed = false,
       _allSongs = false;
   String? _portrait, _error;
+  AppleArtistVisuals? _artistVisuals;
+  String? _visualEvidenceKey;
+  int _visualRequest = 0;
+  bool _heroInView = true;
   int _request = 0;
   // Heavy library grouping and reconciliation must not run during the first
   // 320ms of an incoming page's route animation. Build the lightweight
@@ -131,6 +138,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   void initState() {
     super.initState();
     LokalPerformanceAdvisor.noteNavigation(surface: 'detail');
+    _scrollController.addListener(_updateHeroVisibility);
     _restore();
   }
 
@@ -159,6 +167,50 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (!mounted || _relatedReady) return;
     _entryAnimation?.removeStatusListener(_onEntryStatus);
     setState(() => _relatedReady = true);
+    // Let the new build compute the local artist song slice before using it
+    // as match evidence; deep-linked artist pages may pass no initial songs.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.isArtist) unawaited(_loadArtistVisuals());
+    });
+  }
+
+  void _updateHeroVisibility() {
+    if (!mounted || !widget.isArtist || !_scrollController.hasClients) return;
+    final visible =
+        _scrollController.offset < LokalDetailHeader.artistHeight(context);
+    if (_heroInView != visible) {
+      setState(() => _heroInView = visible);
+    }
+  }
+
+  Future<void> _loadArtistVisuals() async {
+    if (!mounted || !widget.isArtist || !_relatedReady) return;
+    final knownLocalSongs = widget.localSongs.isNotEmpty
+        ? widget.localSongs
+        : (_cachedLocal ?? const <Song>[]);
+    final titles = <String>{
+      for (final song in knownLocalSongs.take(80)) ...[
+        song.title,
+        if (song.album?.isNotEmpty == true) song.album!,
+      ],
+      for (final track in (_page?.tracks ?? <LokalCatalogueTrack>[]).take(40))
+        track.metadata.title,
+      for (final album in (_page?.albums ?? <LokalCatalogueAlbum>[]).take(40))
+        album.title,
+    }..removeWhere((title) => title.trim().isEmpty);
+    if (titles.isEmpty) return;
+    final sortedTitles = titles.map(recommendationKey).toList()..sort();
+    final key = '${recommendationKey(widget.artist)}|${sortedTitles.join('|')}';
+    if (_visualEvidenceKey == key) return;
+    _visualEvidenceKey = key;
+    final request = ++_visualRequest;
+    final result = await AppleArtistVisualsService.instance.lookup(
+      artistName: widget.artist,
+      knownTitles: titles,
+    );
+    if (mounted && request == _visualRequest) {
+      setState(() => _artistVisuals = result);
+    }
   }
 
   @override
@@ -173,6 +225,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       _cachedRelated = null;
       _relatedSource = null;
       _entryCache = null;
+      _artistVisuals = null;
+      _visualEvidenceKey = null;
+      ++_visualRequest;
+      if (_relatedReady && widget.isArtist) unawaited(_loadArtistVisuals());
     }
   }
 
@@ -297,6 +353,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       if (widget.isArtist && image?.isNotEmpty == true) {
         unawaited(_cacheOnlinePortrait(image!));
       }
+      if (widget.isArtist) unawaited(_loadArtistVisuals());
     } catch (error) {
       if (mounted && _online && request == _request) {
         final message = discoveryError(error);
@@ -512,6 +569,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   void dispose() {
     _entryAnimation?.removeStatusListener(_onEntryStatus);
     ++_request;
+    ++_visualRequest;
     _cancel.complete();
     _client.close();
     _scrollController.dispose();
@@ -588,7 +646,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
           )
         : null;
     final heroImage = widget.isArtist
-        ? (cachedPortrait ??
+        ? (_artistVisuals?.heroUrl ?? cachedPortrait ??
               (_portrait?.isNotEmpty == true
                   ? _portrait
                   : _online
@@ -673,12 +731,23 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         ),
       );
     }
+    final prefs = ref.watch(appPreferencesProvider);
+    final motionUrl = widget.isArtist ? _artistVisuals?.motionUrl : null;
+    final artistArtwork = motionUrl == null
+        ? heroArtwork
+        : LokalArtistMotionBackdrop(
+            url: motionUrl,
+            fallback: heroArtwork,
+            enabled: prefs.animatedAlbumArt && prefs.animationsEnabled,
+            playbackActive:
+                _heroInView && (ModalRoute.of(context)?.isCurrent ?? true),
+          );
     final stagedArtwork = LokalArtworkReveal(
       identity: '${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}',
       // A full-bleed BoxFit.cover already fits square/non-square portraits
       // without adding bars. Re-decoding each file for automatic cropping
       // was redundant for verified editorial images and could cause jank.
-      child: heroArtwork,
+      child: artistArtwork,
     );
     return Scaffold(
       backgroundColor: pageColor,
@@ -711,6 +780,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               fixedArtwork: true,
               background: pageColor,
               artworkHeroTag: widget.artworkHeroTag,
+              artistLogoUrl: widget.isArtist ? _artistVisuals?.logoUrl : null,
+              artistLogoAspect: _artistVisuals?.logoAspect ?? 1,
               metadata: widget.isArtist
                   ? (local.isEmpty ? null : lokalSongCount(local.length))
                   : [

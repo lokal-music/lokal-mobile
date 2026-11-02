@@ -25,6 +25,8 @@ class LokalDetailHeader extends StatelessWidget {
     this.artistCredit,
     this.metadata,
     this.artworkHeroTag,
+    this.artistLogoUrl,
+    this.artistLogoAspect = 1,
   });
 
   final String title;
@@ -32,6 +34,8 @@ class LokalDetailHeader extends StatelessWidget {
   final Widget? artistCredit;
   final String? metadata;
   final String? artworkHeroTag;
+  final String? artistLogoUrl;
+  final double artistLogoAspect;
   final bool isArtist;
   /// When true, the artwork is painted behind the entire scroll view rather
   /// than inside this moving header. The header remains transparent.
@@ -230,27 +234,27 @@ class LokalDetailHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
+
                 Semantics(
                   header: true,
-                  child: Text(
-                    title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: LokalTheme.sans,
-                      fontSize: fullBleed ? 43 : 32,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1.35,
-                      height: 1.06,
-                      color: fullBleed ? Colors.white : t.text,
-                      // Fixed artwork has no added shadow or darkening.
-                      shadows: fixedArtwork
-                          ? null
-                          : (isArtist
-                              ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
-                              : null),
-                    ),
-                  ),
+                  label: isArtist && artistLogoUrl?.isNotEmpty == true ? title : null,
+                  child: isArtist && artistLogoUrl?.isNotEmpty == true
+                      ? Image.network(
+                          artistLogoUrl!,
+                          width: (size.width - 48) * .82,
+                          height: ((size.width - 48) * .82 /
+                                  artistLogoAspect.clamp(.4, 6))
+                              .clamp(64.0, heroHeight * .27),
+                          fit: BoxFit.contain,
+                          alignment: Alignment.centerLeft,
+                          // Retain a readable title until the PNG is decoded
+                          // and whenever Apple has moved or removed the asset.
+                          loadingBuilder: (context, child, loading) =>
+                              loading == null ? child : _plainTitle(context, fullBleed),
+                          errorBuilder: (context, error, stackTrace) =>
+                              _plainTitle(context, fullBleed),
+                        )
+                      : _plainTitle(context, fullBleed),
                 ),
                 if (artistCredit != null) ...[
                   const SizedBox(height: 9),
@@ -273,6 +277,29 @@ class LokalDetailHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+
+  Widget _plainTitle(BuildContext context, bool fullBleed) {
+    final t = context.lokal;
+    return Text(
+      title,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontFamily: LokalTheme.sans,
+        fontSize: fullBleed ? 43 : 32,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -1.35,
+        height: 1.06,
+        color: fullBleed ? Colors.white : t.text,
+        shadows: fixedArtwork
+            ? null
+            : (isArtist
+                ? const [Shadow(color: Color(0x55000000), blurRadius: 5)]
+                : null),
       ),
     );
   }
