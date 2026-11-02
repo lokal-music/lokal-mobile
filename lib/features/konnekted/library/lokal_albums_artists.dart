@@ -453,12 +453,16 @@ class _ArtistRow extends ConsumerWidget {
         (paths) => paths[ArtistMetadata.key(artist.name)],
       ),
     );
+    // Portraits, fallback album art and placeholders must occupy the same
+    // circle; previously the first was 52 px but the others were 68 px.
+    const diameter = 52.0;
+    const radius = diameter / 2;
     final fallback = artist.songs.isEmpty
-        ? CircleAvatar(radius: 34,
+        ? CircleAvatar(radius: radius,
             backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
             child: Icon(Icons.person_rounded, color: context.lokal.muted))
         : KonnektedArtwork(
-            song: artist.songs.first, size: 68, radius: 34);
+            song: artist.songs.first, size: diameter, radius: radius);
     return LokalPressable(
       radius: 18,
       onTap: () => pushLokal(
@@ -478,18 +482,21 @@ class _ArtistRow extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
           children: [
-            portrait == null
-                ? fallback
-                : ClipOval(
-                    child: Image.file(
-                      File(portrait),
-                      width: 52,
-                      height: 52,
-                      cacheWidth: 156,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => fallback,
-                    ),
-                  ),
+            SizedBox.square(
+              dimension: diameter,
+              child: ClipOval(
+                child: portrait == null
+                    ? fallback
+                    : Image.file(
+                        File(portrait),
+                        width: diameter,
+                        height: diameter,
+                        cacheWidth: 156,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => fallback,
+                      ),
+              ),
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
