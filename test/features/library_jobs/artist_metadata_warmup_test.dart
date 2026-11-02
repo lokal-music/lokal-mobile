@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flick/data/entities/artist_entity.dart';
 import 'package:flick/core/utils/artist_credits.dart';
 import 'package:flick/features/library_jobs/artist_metadata.dart';
 import 'package:flick/features/library_jobs/library_jobs.dart';
@@ -102,6 +103,23 @@ void main() {
     worker.publishPortrait('M83', '/cache/old-portrait.jpg');
     worker.publishPortrait('M83', '/cache/new-portrait.jpg');
     expect(observed, ['/cache/old-portrait.jpg', '/cache/new-portrait.jpg']);
+  });
+
+  test('saved Spotify-only artist portrait is included without local tracks', () {
+    final followedOnly = ArtistEntity()
+      ..name = 'Imported Spotify Artist'
+      ..artPath = '/app/support/artist_portraits/spotify-art.img';
+    final local = ArtistEntity()
+      ..name = 'Local Artist'
+      ..artPath = '/app/support/artist_portraits/local-art.img';
+    final missing = ArtistEntity()
+      ..name = 'Unresolved Artist';
+    final paths = savedArtistPortraitPaths([followedOnly, local, missing]);
+    expect(paths['imported spotify artist'],
+        '/app/support/artist_portraits/spotify-art.img');
+    expect(paths['local artist'],
+        '/app/support/artist_portraits/local-art.img');
+    expect(paths.containsKey('unresolved artist'), isFalse);
   });
 
   test('manual refresh sorts local and followed artist names together', () {
