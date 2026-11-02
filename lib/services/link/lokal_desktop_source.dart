@@ -100,6 +100,52 @@ class LokalDesktopSource extends NetworkSourceService {
     return capabilities['contentMatching'] == true;
   }
 
+  Future<Uint8List?> _phoneCoverThumbnail(Song song) async {
+    final sourcePath = song.filePath;
+    if (sourcePath == null || sourcePath.isEmpty || song.isNetworkSource) {
+      return null;
+    }
+    var art = song.albumArt;
+    if (art == null || !await File(art).exists()) {
+      art = await AlbumArtService.instance.resolveArtworkPath(
+        existingPath: art, audioSourcePath: sourcePath,
+      );
+    }
+    if (art == null || !await File(art).exists()) return null;
+    final file = File(art);
+    final stat = await file.stat();
+    if (stat.size <= 0 || stat.size > 8 * 1024 * 1024) return null;
+    return compute(
+      linkHistoryCoverJpeg,
+      Uint8List.fromList(await file.readAsBytes()),
+    );
+  }
+
+  /// The audio copy can have an independent folder cover rather than an
+  /// embedded tag. Export that cover separately under the paired recording ID.
+  Future<void> _uploadCopiedArtwork(
+    Song song,
+    LokalRemoteCredentials credentials,
+    String desktopTrackId,
+  ) async {
+    try {
+      final jpg = await _phoneCoverThumbnail(song);
+      if (jpg == null) return;
+      await http.post(
+        credentials.origin.replace(
+          pathSegments: ['api', 'remote', 'files', desktopTrackId, 'artwork'],
+        ),
+        headers: {
+          ..._headers(credentials),
+          'content-type': 'application/json',
+        },
+        body: jsonEncode({'image_base64': base64Encode(jpg)}),
+      ).timeout(const Duration(seconds: 6));
+    } on Object {
+      // Cover failure cannot invalidate an already verified audio transfer.
+    }
+  }
+
   /// Upload a few small album covers for history-only phone recordings.
   /// A ghost is non-playable until its original audio is copied; this only
   /// preserves its artwork. History sync must succeed independently of art.
@@ -134,20 +180,8 @@ class LokalDesktopSource extends NetworkSourceService {
         final lastSent = prefs.getInt(cacheKey) ?? 0;
         if (DateTime.now().millisecondsSinceEpoch - lastSent <
             const Duration(days: 30).inMilliseconds) continue;
-        String? artwork = row.albumArtPath;
-        if (artwork == null || !await File(artwork).exists()) {
-          artwork = await AlbumArtService.instance.resolveArtworkPath(
-            existingPath: artwork,
-            audioSourcePath: row.filePath,
-          );
-        }
-        if (artwork == null || !await File(artwork).exists()) continue;
-        final file = File(artwork);
-        final stat = await file.stat();
-        if (stat.size <= 0 || stat.size > 8 * 1024 * 1024) continue;
-        final jpg = await compute(
-          linkHistoryCoverJpeg,
-          Uint8List.fromList(await file.readAsBytes()),
+        final jpg = await _phoneCoverThumbnail(
+          SongRepository().songFromEntity(row),
         );
         if (jpg == null) continue;
         final response = await http
@@ -1180,6 +1214,11 @@ class LokalDesktopSource extends NetworkSourceService {
               body!['trackId'] as String,
             );
           }
+          // Do not lose a separate album cover (cover.jpg/folder.png) when
+          // the phone's audio container has no embedded picture.
+          await _uploadCopiedArtwork(
+            song, credentials, body!['trackId'] as String,
+          );
         })().timeout(
           const Duration(minutes: 3),
           onTimeout: () {
