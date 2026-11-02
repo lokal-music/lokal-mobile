@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:flick/core/theme/lokal_tokens.dart';
+import 'package:flick/core/theme/lokal_appearance.dart';
 import 'package:flick/core/theme/lokal_interaction.dart';
 import 'package:flick/data/database.dart';
 import 'package:flick/data/repositories/song_repository.dart';
@@ -42,6 +43,7 @@ import 'lokal_artwork_reveal.dart';
 import 'lokal_artist_motion_backdrop.dart';
 import 'lokal_detail_header.dart';
 import 'lokal_detail_fixed_backdrop.dart';
+import 'lokal_detail_scroll_chrome.dart';
 import 'lokal_library_groups.dart';
 import 'lokal_library_kit.dart';
 import 'lokal_online_catalogue.dart';
@@ -749,6 +751,11 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       // was redundant for verified editorial images and could cause jank.
       child: artistArtwork,
     );
+    final heroHeight = LokalDetailHeader.artistHeight(context);
+    final performanceMode = ref.watch(
+      lokalAppearanceProvider.select((appearance) =>
+          appearance.performanceMode || appearance.ultraPerformanceMode),
+    );
     return Scaffold(
       backgroundColor: pageColor,
       body: Stack(
@@ -759,13 +766,22 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             top: 0,
             left: 0,
             right: 0,
-            height: LokalDetailHeader.artistHeight(context),
+            height: heroHeight,
             child: IgnorePointer(
               child: LokalDetailFixedBackdrop(
                 artwork: stagedArtwork,
                 background: pageColor,
               ),
             ),
+          ),
+          // A separate, eased UI wash replaces the narrow masked-image strip.
+          // It is not an image filter; the still/video hero remains untouched.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: heroHeight,
+            child: LokalDetailHeroWash(background: pageColor),
           ),
           Positioned.fill(
             child: CustomScrollView(
@@ -778,6 +794,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               artwork: stagedArtwork,
               isArtist: widget.isArtist,
               fixedArtwork: true,
+              controlsInOverlay: true,
               background: pageColor,
               artworkHeroTag: widget.artworkHeroTag,
               artistLogoUrl: widget.isArtist ? _artistVisuals?.logoUrl : null,
@@ -1035,6 +1052,35 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
             ),
           ),
               ],
+            ),
+          ),
+          // BitChord-style top frost samples the scrolling UI beneath it.
+          // It belongs above the scroll view and remains while the hero exits.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LokalDetailProgressiveTopBlur(
+              scrollController: _scrollController,
+              heroHeight: heroHeight,
+              background: pageColor,
+              dynamicBlur: !performanceMode,
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LokalDetailFloatingControls(
+              title: widget.title,
+              scrollController: _scrollController,
+              heroHeight: heroHeight,
+              onBack: () => Navigator.of(context).maybePop(),
+              onlineEnabled: _online,
+              onlineLoading: _loading,
+              onlineDisabled: _busy,
+              onOnline: () => unawaited(_setOnline(!_online)),
+              onMore: () => unawaited(_showMenu(rows, local, allLiked)),
             ),
           ),
         ],
