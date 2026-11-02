@@ -14,6 +14,7 @@ import 'package:flick/providers/lokal_remote_provider.dart';
 
 import 'package:flick/widgets/common/overflow_marquee_title.dart';
 import 'package:flick/core/theme/lokal_theme.dart';
+import 'package:flick/core/navigation/lokal_navigation_switcher.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/data/repositories/recently_played_repository.dart';
 import 'package:flick/features/konnekted/konnekted_discovery.dart';
@@ -171,6 +172,38 @@ class KonnektedYou extends ConsumerStatefulWidget {
 
 class _KonnektedYouState extends ConsumerState<KonnektedYou> {
   ListeningRecapPeriod _statsPeriod = ListeningRecapPeriod.weekly;
+  Timer? _entryTimer;
+  bool _richContentReady = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The tab switcher keeps visited tabs alive offstage. Never kick off a
+    // cold recap query while You is hidden, or during the incoming 330ms
+    // translation: both compete with the navigation raster budget.
+    if (!TickerMode.of(context)) {
+      _entryTimer?.cancel();
+      _entryTimer = null;
+    } else if (!_richContentReady &&
+        _entryTimer == null &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      _entryTimer = Timer(
+        LokalNavigationSwitcher.enterDuration +
+            const Duration(milliseconds: 64),
+        () {
+          _entryTimer = null;
+          if (!mounted || !TickerMode.of(context)) return;
+          setState(() => _richContentReady = true);
+        },
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _entryTimer?.cancel();
+    super.dispose();
+  }
 
   void _push(Widget page) => unawaited(
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page)),
@@ -215,7 +248,15 @@ class _KonnektedYouState extends ConsumerState<KonnektedYou> {
 
   @override
   Widget build(BuildContext context) {
-    final recaps = ref.watch(youRecapsProvider).value ?? const {};
+    // Keep the first navigation frame light. Reduced-motion users receive
+    // the entire page immediately; only the data subscription is deferred
+    // for the animated entry, not the profile header or its actions.
+    final showRichContent =
+        _richContentReady || MediaQuery.disableAnimationsOf(context);
+    final recaps = showRichContent
+        ? (ref.watch(youRecapsProvider).value ??
+            const <ListeningRecapPeriod, ListeningRecap>{})
+        : const <ListeningRecapPeriod, ListeningRecap>{};
     final accounts = ref.watch(youAccountsProvider);
     final profile = ref.watch(linkedDesktopProfileProvider).value;
     final local = ref.watch(localYouProfileProvider).value;
@@ -225,9 +266,12 @@ class _KonnektedYouState extends ConsumerState<KonnektedYou> {
             ? profile!.username
             : accounts.name;
     final name = local?.username ?? defaultName;
-    final streak = ref.watch(youStreakProvider).value;
-    final milestones =
-        ref.watch(youMilestonesProvider).value ?? const <MilestoneRecord>[];
+    final streak = showRichContent
+        ? ref.watch(youStreakProvider).value
+        : null;
+    final milestones = showRichContent
+        ? (ref.watch(youMilestonesProvider).value ?? const <MilestoneRecord>[])
+        : const <MilestoneRecord>[];
     final navigate = widget.onNavigate;
     return SafeArea(
       bottom: false,
@@ -268,10 +312,12 @@ class _KonnektedYouState extends ConsumerState<KonnektedYou> {
               separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (_, i) {
                 final period = youRecapPeriods[i];
-                return _RecapCard(
-                  period: period,
-                  recap: recaps[period],
-                  onTap: () => _openRecap(period),
+                return RepaintBoundary(
+                  child: _RecapCard(
+                    period: period,
+                    recap: recaps[period],
+                    onTap: () => _openRecap(period),
+                  ),
                 );
               },
             ),
