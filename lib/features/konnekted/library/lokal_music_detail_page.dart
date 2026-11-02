@@ -192,7 +192,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         album.title,
     }..removeWhere((title) => title.trim().isEmpty);
     if (titles.isEmpty) return;
-    final key = '${recommendationKey(widget.artist)}|${titles.length}|${_page != null}';
+    final sortedTitles = titles.map(recommendationKey).toList()..sort();
+    final key = '${recommendationKey(widget.artist)}|${sortedTitles.join('|')}';
     if (_visualEvidenceKey == key) return;
     _visualEvidenceKey = key;
     final request = ++_visualRequest;
