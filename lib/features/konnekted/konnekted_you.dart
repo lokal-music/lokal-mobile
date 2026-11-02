@@ -775,7 +775,9 @@ class _RecapCard extends StatelessWidget {
     // Older/synced recaps can still contain unsplit multi-artist credits.
     final artistName = has ? primaryArtistCredit(recap?.topArtist?.artist) : '';
     final detail = has
-        ? (artistName.isNotEmpty ? artistName : '${_count(recap!.totalPlays)} plays')
+        ? (artistName.isNotEmpty
+            ? artistName
+            : '${_count(recap!.totalPlays)} plays')
         : 'Play a few songs';
     // Each period uses its own top artist, never the currently selected Stats
     // period. DiscoveryArtwork prefers cached/local artist portraits and can
