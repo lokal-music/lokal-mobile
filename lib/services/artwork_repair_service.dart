@@ -268,8 +268,11 @@ class ArtworkRepairService {
           try {
             // One durable image and one DB operation per album, not one
             // misleading custom override per song in the album.
-            await _importer.applyAutomaticRepair(songs: replacements, bytes: bytes);
-            updated += replacements.length;
+            final result = await _importer.applyAutomaticRepair(
+              songs: replacements, bytes: bytes,
+            );
+            updated += result.filePaths.length;
+            skipped += replacements.length - result.filePaths.length;
           } catch (_) {
             failed += replacements.length;
           }
