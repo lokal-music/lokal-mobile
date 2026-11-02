@@ -303,18 +303,29 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (!widget.isArtist || !Database.isInitialized || !_online) return;
     try {
       if (path.startsWith('http')) {
-        path = (await DefaultCacheManager().getSingleFile(path)).path;
+        final fetched = (await DefaultCacheManager().getSingleFile(path)).path;
+        path = await persistArtistPortraitFile(widget.artist, fetched);
       }
       if (!mounted || !_online) return;
       final previous = await Database.artists
           .filter()
           .nameEqualTo(widget.artist, caseSensitive: false)
           .findFirst();
-      if (previous?.artPath?.isNotEmpty == true) return;
+      if (previous?.artPath?.isNotEmpty == true) {
+        ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
+          widget.artist, previous!.artPath!,
+        );
+        return;
+      }
       final artist = previous ?? (ArtistEntity()..name = widget.artist);
       artist.artPath = path;
       await Database.instance.writeTxn(() => Database.artists.put(artist));
-      if (mounted) setState(() => _portrait = path);
+      if (mounted) {
+        ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
+          widget.artist, path,
+        );
+        setState(() => _portrait = path);
+      }
     } catch (_) {
       // Portrait persistence must never interrupt navigation.
     }
