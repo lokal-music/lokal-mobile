@@ -407,7 +407,10 @@ class LinkSyncCoordinator {
     // A cursor only returns new events. Explicit Sync Now must also rebuild
     // playlists missing from the mobile store after a legacy or partial merge.
     // Replaying their durable operation history also repairs order and deletes.
-    if (!_background) await _reconcileDesktopPlaylists();
+    if (!_background) {
+      await _reconcileDesktopPlaylists();
+      await _reconcileRecentDesktopHistory();
+    }
     _requireReady();
     _report(LinkSyncPhase.finalizing);
     if (!_background) {
@@ -415,6 +418,55 @@ class LinkSyncCoordinator {
       onProfileChanged?.call();
     }
     if (changed || !_background) MilestoneService.changes.add(null);
+  }
+
+  /// Repair history which was received before its PC songs were in the
+  /// phone's catalogue. Pull cursors are append-only, so those old events
+  /// would otherwise never be projected into the visible Recent history.
+  /// Only the latest 500 events are checked; all older events remain safely
+  /// stored in the journal for listening statistics.
+  Future<void> _reconcileRecentDesktopHistory() async {
+    final rows = await Database.instance.playEventEntitys
+        .where()
+        .sortByPlayedAtDesc()
+        .limit(500)
+        .findAll();
+    if (rows.isEmpty) return;
+    final songs = SongRepository();
+    final journal = LinkJournal.instance;
+    final byTitle = <String, List<Song>>{};
+    final byTrack = <String, Song?>{};
+    final projected =
+        <({String songId, String eventId, DateTime playedAt, int listenedMs})>[];
+    for (final event in rows) {
+      if (event.source != 'desktop') continue;
+      Map<String, dynamic> track;
+      try {
+        track = Map<String, dynamic>.from(
+          jsonDecode(event.trackJson) as Map,
+        );
+      } on Object {
+        continue;
+      }
+      final title = track['title']?.toString() ?? '';
+      if (title.isEmpty) continue;
+      final song = byTrack.containsKey(event.trackKey)
+          ? byTrack[event.trackKey]
+          : await journal.match(
+              {...track, 'track_key': event.trackKey},
+              candidates: byTitle[title] ??=
+                  await songs.getHistoryMatchCandidates(title),
+            );
+      byTrack[event.trackKey] = song;
+      if (song == null) continue;
+      projected.add((
+        songId: song.id,
+        eventId: event.eventId,
+        playedAt: DateTime.fromMillisecondsSinceEpoch(event.playedAt),
+        listenedMs: event.msPlayed,
+      ));
+    }
+    await RecentlyPlayedRepository().recordLinkPlays(projected);
   }
 
   /// Recover every playlist owned by the paired desktop on an explicit sync,
