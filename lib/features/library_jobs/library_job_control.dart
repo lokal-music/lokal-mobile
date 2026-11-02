@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/konnekted_data.dart';
+import 'package:flick/features/konnekted/library/artist_follow_store.dart';
 
 import 'library_jobs.dart';
 
@@ -15,6 +16,9 @@ class LibraryJobControl extends ConsumerWidget {
     final status = ref.watch(libraryJobsProvider);
     final library = ref.watch(konnektedLibraryProvider);
     final active = status.job == job && status.running;
+    final hasLocalSongs = library.value?.isNotEmpty == true;
+    final hasFollowedArtists =
+        job == LibraryJob.artists && ArtistFollowStore.instance.knownNames.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Column(
@@ -31,9 +35,7 @@ class LibraryJobControl extends ConsumerWidget {
                   ),
                   label: Text(active ? status.message : job.label),
                   onPressed:
-                      status.running ||
-                          library.value == null ||
-                          library.value!.isEmpty
+                      status.running || (!hasLocalSongs && !hasFollowedArtists)
                       ? null
                       : () => unawaited(
                           ref
@@ -67,7 +69,7 @@ class LibraryJobControl extends ConsumerWidget {
             Text(
               job == LibraryJob.videos
                   ? 'Search YouTube Music for official videos of your library songs.'
-                  : 'Refresh Apple Music metadata for the artists in your library. Local tags stay unchanged.',
+                  : 'Refresh artist metadata and portraits for library and followed artists. Local tags stay unchanged.',
               style: TextStyle(color: context.lokal.muted, fontSize: 12),
             ),
         ],
