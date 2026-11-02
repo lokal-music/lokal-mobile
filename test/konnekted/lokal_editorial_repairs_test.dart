@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flick/core/constants/app_constants.dart';
@@ -42,6 +43,21 @@ class _Player extends PlayerNotifier {
   PlayerState build() => const PlayerState();
 }
 
+class _PendingPlayPlayer extends _Player {
+  static Completer<void>? pending;
+  static int calls = 0;
+
+  @override
+  Future<void> play(
+    Song song, {
+    List<Song>? playlist,
+    PlaybackContext? context,
+  }) {
+    calls++;
+    return pending!.future;
+  }
+}
+
 class _PlayerService extends Fake implements PlayerService {
   @override
   final isPlayingNotifier = ValueNotifier(false);
@@ -79,10 +95,14 @@ const _duplicate = Song(
   fileType: 'FLAC',
 );
 
-Widget _app(Widget child) => ProviderScope(
+Widget _app(
+  Widget child, {
+  List<Song> library = const [],
+  PlayerNotifier Function()? playerFactory,
+}) => ProviderScope(
   overrides: [
-    konnektedLibraryProvider.overrideWithValue(const AsyncData([])),
-    playerProvider.overrideWith(_Player.new),
+    konnektedLibraryProvider.overrideWithValue(AsyncData(library)),
+    playerProvider.overrideWith(playerFactory ?? _Player.new),
     playerServiceProvider.overrideWithValue(_PlayerService()),
   ],
   child: MaterialApp(
@@ -203,6 +223,75 @@ void main() {
     expect(await metadata([_song]), '2020  ·  1 song  ·  3 min');
     expect(await metadata([_song, _duplicate]), '1999  ·  1 song  ·  3 min');
   });
+
+  testWidgets(
+    'top song tap does not flash or disable the header Play button',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      _PendingPlayPlayer.pending = Completer<void>();
+      _PendingPlayPlayer.calls = 0;
+      addTearDown(() {
+        if (_PendingPlayPlayer.pending?.isCompleted == false) {
+          _PendingPlayPlayer.pending!.complete();
+        }
+        _PendingPlayPlayer.pending = null;
+      });
+      final songs = [
+        const Song(
+          id: 'top-1',
+          title: 'Top Song 1',
+          artist: 'Artist',
+          album: 'Album',
+          duration: Duration(minutes: 3),
+          fileType: 'FLAC',
+        ),
+        const Song(
+          id: 'top-2',
+          title: 'Top Song 2',
+          artist: 'Artist',
+          album: 'Album',
+          duration: Duration(minutes: 4),
+          fileType: 'FLAC',
+        ),
+      ];
+      await tester.pumpWidget(
+        _app(
+          LokalMusicDetailPage.artist(name: 'Artist', localSongs: songs),
+          library: songs,
+          playerFactory: _PendingPlayPlayer.new,
+        ),
+      );
+      await tester.pump();
+      await tester.ensureVisible(find.text('Top Song 1').first);
+      await tester.pump();
+      await tester.tap(find.text('Top Song 1').first);
+      await tester.pump();
+
+      expect(_PendingPlayPlayer.calls, 1);
+      final play = find.byType(FilledButton).first;
+      expect(tester.widget<FilledButton>(play).onPressed, isNotNull);
+      expect(find.descendant(
+        of: play,
+        matching: find.byIcon(Icons.play_arrow_rounded),
+      ), findsOneWidget);
+      expect(find.descendant(
+        of: play,
+        matching: find.byType(CircularProgressIndicator),
+      ), findsNothing);
+
+      // Repeated taps during an outstanding playback request are ignored
+      // without toggling the header button into a disabled/loading state.
+      await tester.tap(find.text('Top Song 1').first);
+      await tester.pump();
+      expect(_PendingPlayPlayer.calls, 1);
+      expect(tester.widget<FilledButton>(play).onPressed, isNotNull);
+      _PendingPlayPlayer.pending!.complete();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('artist content keeps the theme background when scrolled',
       (tester) async {

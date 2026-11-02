@@ -112,6 +112,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       _busy = false,
       _followed = false,
       _allSongs = false;
+  // Playback already reports its own progress in the player. Keep this out of
+  // setState: toggling the shared download/action busy state redraws the page's
+  // Play button as a spinner when any Top Songs row is tapped.
+  bool _playPending = false;
   String? _portrait, _error;
   AppleArtistVisuals? _artistVisuals;
   String? _visualEvidenceKey;
@@ -482,13 +486,15 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     int start = 0,
     bool shuffle = false,
   }) async {
-    if (rows.isEmpty || _busy) return;
+    if (rows.isEmpty || _busy || _playPending) return;
+    // Prevent duplicate concurrent play requests without rebuilding the
+    // entire artist/album page or momentarily disabling its header controls.
+    _playPending = true;
     final ordered = List<_Entry>.of(rows);
     if (shuffle) {
       ordered.shuffle();
       start = 0;
     }
-    setState(() => _busy = true);
     try {
       final queue = [
         for (final entry in ordered) entry.owned ?? entry.track.pending(),
@@ -500,7 +506,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     } catch (error) {
       if (mounted) _progress.fail(discoveryError(error));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _playPending = false;
     }
   }
 
@@ -879,12 +885,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                       Expanded(
                         child: FilledButton.icon(
                           onPressed: rows.isEmpty || _busy ? null : () => _play(rows),
-                          icon: _busy
-                              ? const SizedBox.square(
-                                  dimension: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.play_arrow_rounded, size: 27),
+                          // Busy here may mean a download or menu action, not
+                          // header playback. Never flash the Play icon.
+                          icon: const Icon(Icons.play_arrow_rounded, size: 27),
                           label: Text(
                             l10n.play,
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
