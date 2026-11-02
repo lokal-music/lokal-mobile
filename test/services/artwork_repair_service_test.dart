@@ -19,12 +19,14 @@ AlbumArtCandidate candidate({
   required String artist,
   String source = 'iTunes',
   String image = 'https://example.org/cover.jpg',
+  String? releaseDate,
 }) => AlbumArtCandidate(
   previewUrl: image,
   imageUrl: image,
   title: title,
   artist: artist,
   sourceLabel: source,
+  releaseDate: releaseDate,
 );
 
 void main() {
@@ -39,6 +41,35 @@ void main() {
     expect(exactRepairCandidate(original, [
       candidate(title: 'Album One', artist: 'Wrong Artist'),
     ]), isNull);
+  });
+
+  test('lead album-artist credit finds the verified release despite features', () {
+    final original = song().copyWith(
+      albumArtist: 'SZA feat. Kendrick Lamar',
+      artist: 'Kendrick Lamar, SZA',
+    );
+    expect(repairLeadArtist(original), 'SZA');
+    final cover = candidate(title: 'Album One', artist: 'SZA');
+    expect(exactRepairCandidate(original, [cover])?.imageUrl, cover.imageUrl);
+    expect(exactRepairCandidate(original, [
+      candidate(title: 'Album One', artist: 'Kendrick Lamar'),
+    ]), isNull);
+  });
+
+  test('multiple editions only resolve if one matches the tagged release year', () {
+    final original = song().copyWith(year: 2024);
+    final older = candidate(
+      title: 'Album One', artist: 'Artist One',
+      image: 'https://example.org/2000.jpg', releaseDate: '2000-01-01',
+    );
+    final matched = candidate(
+      title: 'Album One', artist: 'Artist One',
+      image: 'https://example.org/2024.jpg', releaseDate: '2024-05-06',
+    );
+    expect(exactRepairCandidate(original, [older, matched])?.imageUrl,
+      matched.imageUrl);
+    expect(exactRepairCandidate(original.copyWith(year: 2025), [older, matched]),
+      isNull);
   });
 
   test('multiple exact releases from one catalogue are ambiguous', () {
