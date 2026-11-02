@@ -303,11 +303,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   Future<void> _cacheOnlinePortrait(String path) async {
     if (!widget.isArtist || !Database.isInitialized || !_online) return;
     try {
-      if (path.startsWith('http')) {
-        final fetched = (await DefaultCacheManager().getSingleFile(path)).path;
-        path = await persistArtistPortraitFile(widget.artist, fetched);
-      }
-      if (!mounted || !_online) return;
+      // Consult the persistent artist row before downloading anything.
+      // Spotify follows that were already cached should not re-fetch covers
+      // on every artist-page visit.
       final previous = await Database.artists
           .filter()
           .nameEqualTo(widget.artist, caseSensitive: false)
@@ -331,6 +329,12 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         );
         return;
       }
+      if (!mounted || !_online) return;
+      if (path.startsWith('http')) {
+        final fetched = (await DefaultCacheManager().getSingleFile(path)).path;
+        path = await persistArtistPortraitFile(widget.artist, fetched);
+      }
+      if (!mounted || !_online) return;
       final artist = previous ?? (ArtistEntity()..name = widget.artist);
       artist.artPath = path;
       await Database.instance.writeTxn(() => Database.artists.put(artist));
