@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flick/core/theme/adaptive_color_provider.dart';
 import 'package:flick/models/song.dart';
+import 'package:flick/services/link/lokal_desktop_source.dart';
 import 'package:flick/widgets/common/glass_bottom_sheet.dart';
 import 'package:flick/l10n/l10n.dart';
 
@@ -36,6 +37,10 @@ String? metadataFileSizeMb(int? bytes) =>
 /// progressive handles are not ordinary paths and must never be stat'ed.
 Future<int?> metadataFileBytes(Song song) async {
   if (song.fileSizeBytes case final known? when known > 0) return known;
+  // lokal:// is a remote desktop ID, not a local filesystem path.
+  if (song.sourceType == 'lokal') {
+    return LokalDesktopSource.instance.linkedFileSize(song);
+  }
   final path = song.filePath;
   if (path == null || path.isEmpty ||
       path.contains('://') || song.isNetworkSource) return null;
