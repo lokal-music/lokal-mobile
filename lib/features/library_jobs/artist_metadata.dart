@@ -157,7 +157,10 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
     required int generation,
   }) async {
     final image = imageUrl?.trim();
-    if (!Database.isInitialized || !ref.mounted || image == null || image.isEmpty) {
+    if (!Database.isInitialized ||
+        !ref.mounted ||
+        image == null ||
+        image.isEmpty) {
       return false;
     }
     final artistKey = key(name);
@@ -168,7 +171,9 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
     final file = await DefaultCacheManager()
         .getImageFile(
           image,
-          key: force ? refreshedArtistPortraitCacheKey(name, DateTime.now()) : null,
+          key: force
+              ? refreshedArtistPortraitCacheKey(name, DateTime.now())
+              : null,
           maxWidth: 600,
           maxHeight: 600,
         )
@@ -182,16 +187,25 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
     final cachedPath = file.file.path;
     // Publish only after saving the replacement. Readers retain their old
     // portrait if the download or database transaction fails.
+    var persisted = false;
     await Database.instance.writeTxn(() async {
+      // A background lookup that started earlier must not commit after a
+      // newer explicit refresh has taken ownership of this artist.
+      if (!force && !_isCurrent(artistKey, generation)) return;
+      if (force && (_forcedGeneration[artistKey] ?? 0) != generation) return;
       final row =
           await Database.artists
               .filter()
               .nameEqualTo(name, caseSensitive: false)
               .findFirst() ??
           (ArtistEntity()..name = name);
+      if (!force && !_isCurrent(artistKey, generation)) return;
+      if (force && (_forcedGeneration[artistKey] ?? 0) != generation) return;
       row.artPath = cachedPath;
       await Database.artists.put(row);
+      persisted = true;
     });
+    if (!persisted) return false;
     if (ref.mounted && (force || _isCurrent(artistKey, generation))) {
       state = {...state, artistKey: cachedPath};
     }
