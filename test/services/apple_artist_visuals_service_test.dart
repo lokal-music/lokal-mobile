@@ -77,6 +77,62 @@ void main() {
         '<script id="serialized-server-data">[{"data":{}}]</script>'), isNull);
   });
 
+  test('accepts a verified artist and returns editorial artwork', () async {
+    final directory = await Directory.systemTemp.createTemp('artist_visuals_ok_');
+    final cache = AppleMusicCache.forDirectory(directory);
+    var artistPageCalls = 0;
+    final client = MockClient((request) async {
+      if (request.url.host == 'itunes.apple.com' &&
+          request.url.path == '/search') {
+        return http.Response(jsonEncode({
+          'results': [{
+            'wrapperType': 'artist',
+            'artistId': 123,
+            'artistName': 'Colby!',
+            'artistLinkUrl': 'https://music.apple.com/us/artist/colby/123',
+          }]
+        }), 200);
+      }
+      if (request.url.host == 'itunes.apple.com' &&
+          request.url.path == '/lookup') {
+        return http.Response(jsonEncode({
+          'results': [{
+            'wrapperType': 'track',
+            'artistName': 'Colby!',
+            'trackName': 'Fall Head First',
+            'collectionName': 'Fall Head First',
+          }]
+        }), 200);
+      }
+      if (request.url.host == 'music.apple.com') artistPageCalls++;
+      return http.Response(artistHtml(), 200);
+    });
+    try {
+      final service = AppleArtistVisualsService(
+        metadata: AppleMusicMetadataService.create(
+          client: client, cache: cache,
+        ),
+        client: client,
+      );
+      final first = await service.lookup(
+        artistName: 'Colby!',
+        knownTitles: ['Fall Head First'],
+      );
+      expect(first?.logoUrl, contains('1000x250bb.png'));
+      expect(first?.motionUrl, endsWith('.m3u8'));
+      final again = await service.lookup(
+        artistName: 'Colby!',
+        knownTitles: ['Fall Head First'],
+      );
+      expect(again?.logoUrl, first?.logoUrl);
+      expect(artistPageCalls, 1);
+    } finally {
+      await cache.flushPendingWrites();
+      client.close();
+      await directory.delete(recursive: true);
+    }
+  });
+
   test('does not accept an unrelated same-named Apple artist', () async {
     final directory = await Directory.systemTemp.createTemp('artist_visuals_');
     final cache = AppleMusicCache.forDirectory(directory);
