@@ -151,8 +151,10 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
         }
         done++;
         publish(true);
-        if (failed >= 5 && failed == done) {
-          break; // Stop after repeated unavailable results.
+        // Missing portraits are artist-specific (e.g. no Apple Music match).
+        // Do not abort the entire artist refresh after five unmatched names.
+        if (job == LibraryJob.releases && failed >= 5 && failed == done) {
+          break;
         }
         if (!_cancel) {
           await Future<void>.delayed(const Duration(milliseconds: 500));
