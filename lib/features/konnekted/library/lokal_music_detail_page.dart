@@ -2,6 +2,7 @@ import 'package:flick/features/songs/widgets/song_actions_bottom_sheet.dart';
 import 'package:flick/features/library_jobs/artist_metadata.dart';
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flick/features/appearance/lokal_performance_advisor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,7 @@ import 'package:flick/providers/favorites_provider.dart';
 import 'package:flick/providers/player_provider.dart';
 import 'package:flick/providers/app_preferences_provider.dart';
 import 'package:flick/services/apple_music/apple_artist_visuals_service.dart';
+import 'package:flick/services/apple_music/apple_artist_logo_cache.dart';
 import 'package:flick/providers/songs_provider.dart';
 import 'package:flick/widgets/common/cached_image_widget.dart';
 import 'package:flick/widgets/lokal/lokal_glass.dart';
@@ -301,19 +303,47 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
   Future<void> _cacheOnlinePortrait(String path) async {
     if (!widget.isArtist || !Database.isInitialized || !_online) return;
     try {
-      if (path.startsWith('http')) {
-        path = (await DefaultCacheManager().getSingleFile(path)).path;
-      }
-      if (!mounted || !_online) return;
+      // Consult the persistent artist row before downloading anything.
+      // Spotify follows that were already cached should not re-fetch covers
+      // on every artist-page visit.
       final previous = await Database.artists
           .filter()
           .nameEqualTo(widget.artist, caseSensitive: false)
           .findFirst();
-      if (previous?.artPath?.isNotEmpty == true) return;
+      if (previous?.artPath?.isNotEmpty == true &&
+          await File(previous!.artPath!).exists()) {
+        // Migrate existing cached images to permanent storage when revisited.
+        final savedRow = previous!;
+        final durable = await persistArtistPortraitFile(
+          widget.artist, savedRow.artPath!,
+        );
+        if (durable != savedRow.artPath) {
+          savedRow.artPath = durable;
+          await Database.instance.writeTxn(
+            () => Database.artists.put(savedRow),
+          );
+        }
+        if (!mounted) return;
+        ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
+          widget.artist, durable,
+        );
+        return;
+      }
+      if (!mounted || !_online) return;
+      if (path.startsWith('http')) {
+        final fetched = (await DefaultCacheManager().getSingleFile(path)).path;
+        path = await persistArtistPortraitFile(widget.artist, fetched);
+      }
+      if (!mounted || !_online) return;
       final artist = previous ?? (ArtistEntity()..name = widget.artist);
       artist.artPath = path;
       await Database.instance.writeTxn(() => Database.artists.put(artist));
-      if (mounted) setState(() => _portrait = path);
+      if (mounted) {
+        ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
+          widget.artist, path,
+        );
+        setState(() => _portrait = path);
+      }
     } catch (_) {
       // Portrait persistence must never interrupt navigation.
     }
@@ -757,6 +787,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       child: artistArtwork,
     );
     final heroHeight = LokalDetailHeader.artistHeight(context);
+    final diskLogo = widget.isArtist
+        ? AppleArtistLogoCache.instance.cachedFor(widget.artist)
+        : null;
     final performanceMode = ref.watch(
       lokalAppearanceProvider.select((appearance) =>
           appearance.performanceMode || appearance.ultraPerformanceMode),
@@ -802,8 +835,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               controlsInOverlay: true,
               background: pageColor,
               artworkHeroTag: widget.artworkHeroTag,
-              artistLogoUrl: widget.isArtist ? _artistVisuals?.logoUrl : null,
-              artistLogoAspect: _artistVisuals?.logoAspect ?? 1,
+              artistLogoPath: widget.isArtist
+                  ? (diskLogo?.path ?? _artistVisuals?.logoLocalPath)
+                  : null,
+              artistLogoAspect: diskLogo?.aspect ?? _artistVisuals?.logoAspect ?? 1,
               metadata: widget.isArtist
                   ? (local.isEmpty ? null : lokalSongCount(local.length))
                   : [

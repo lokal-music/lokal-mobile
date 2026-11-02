@@ -10,6 +10,7 @@ import 'package:flick/features/konnekted/library/artist_follow_store.dart';
 import 'package:flick/features/discovery/recommendation_match.dart';
 import 'package:flick/features/konnekted/library/lokal_online_catalogue.dart';
 import 'package:flick/services/apple_music/apple_music_metadata_service.dart';
+import 'package:flick/services/apple_music/apple_artist_visuals_service.dart';
 import 'package:flick/models/song.dart';
 
 enum LibraryJob {
@@ -39,7 +40,7 @@ class LibraryJobStatus {
           ? ''
           : cancelled
           ? ' · Stopped'
-          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated portraits refreshed' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
+          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated artist assets refreshed' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
 }
 
 /// Predictable manual-refresh sequence, including followed artists without
@@ -154,13 +155,26 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
             if (releases.isEmpty) failed++;
           } else {
             final info = await api.getArtistData(artistName, refresh: true);
-            if (info == null ||
-                !await ref
-                    .read(artistMetadataProvider.notifier)
-                    .storeRefreshedPortrait(artistName, info.info?.imageUrl)) {
+            if (info == null) {
               failed++;
             } else {
-              updated++;
+              final portraitSaved = await ref
+                  .read(artistMetadataProvider.notifier)
+                  .storeRefreshedPortrait(artistName, info.info?.imageUrl);
+              // The logo is now part of the explicit artist refresh. Also
+              // works for Spotify follows with no local recordings.
+              var logoSaved = false;
+              try {
+                logoSaved = await AppleArtistVisualsService.instance
+                    .refreshFromArtistData(artistName, info);
+              } catch (_) {
+                // No logo endpoint must not invalidate an existing portrait.
+              }
+              if (portraitSaved || logoSaved) {
+                updated++;
+              } else {
+                failed++;
+              }
             }
           }
           LokalOnlineCatalogue.instance.invalidateArtist(artistName);

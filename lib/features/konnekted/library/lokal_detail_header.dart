@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:flick/core/theme/lokal_theme.dart';
@@ -26,7 +28,7 @@ class LokalDetailHeader extends StatelessWidget {
     this.artistCredit,
     this.metadata,
     this.artworkHeroTag,
-    this.artistLogoUrl,
+    this.artistLogoPath,
     this.artistLogoAspect = 1,
   });
 
@@ -35,7 +37,7 @@ class LokalDetailHeader extends StatelessWidget {
   final Widget? artistCredit;
   final String? metadata;
   final String? artworkHeroTag;
-  final String? artistLogoUrl;
+  final String? artistLogoPath;
   final double artistLogoAspect;
   final bool isArtist;
   /// When true, the artwork is painted behind the entire scroll view rather
@@ -240,20 +242,18 @@ class LokalDetailHeader extends StatelessWidget {
 
                 Semantics(
                   header: true,
-                  label: isArtist && artistLogoUrl?.isNotEmpty == true ? title : null,
-                  child: isArtist && artistLogoUrl?.isNotEmpty == true
-                      ? Image.network(
-                          artistLogoUrl!,
+                  label: isArtist && artistLogoPath?.isNotEmpty == true ? title : null,
+                  child: isArtist && artistLogoPath?.isNotEmpty == true
+                      ? Image.file(
+                          File(artistLogoPath!),
                           width: (size.width - 48) * .82,
                           height: ((size.width - 48) * .82 /
                                   artistLogoAspect.clamp(.4, 6))
                               .clamp(64.0, heroHeight * .27),
                           fit: BoxFit.contain,
                           alignment: Alignment.centerLeft,
-                          // Retain a readable title until the PNG is decoded
-                          // and whenever Apple has moved or removed the asset.
-                          loadingBuilder: (context, child, loading) =>
-                              loading == null ? child : _plainTitle(context, fullBleed),
+                          // Disk-backed logo: never flash plain text while
+                          // image decoding completes after reopening the page.
                           errorBuilder: (context, error, stackTrace) =>
                               _plainTitle(context, fullBleed),
                         )

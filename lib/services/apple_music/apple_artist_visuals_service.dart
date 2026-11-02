@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 
 import '../../features/discovery/recommendation_match.dart';
 import 'apple_music_metadata_service.dart';
+import 'apple_music_models.dart';
+import 'apple_artist_logo_cache.dart';
 
 /// Apple's editorial artist-page media. These are not generated fonts or
 /// local animations; many artists have no logo or motion artwork.
@@ -16,12 +18,22 @@ class AppleArtistVisuals {
     this.logoUrl,
     this.logoAspect = 1,
     this.motionUrl,
+    this.logoLocalPath,
   });
 
   final String heroUrl;
   final String? logoUrl;
   final double logoAspect;
   final String? motionUrl;
+  final String? logoLocalPath;
+
+  AppleArtistVisuals withLogo(String? path) => AppleArtistVisuals(
+    heroUrl: heroUrl,
+    logoUrl: logoUrl,
+    logoAspect: logoAspect,
+    motionUrl: motionUrl,
+    logoLocalPath: path,
+  );
 }
 
 /// Parses the embedded artist header without depending on Apple's page layout.
@@ -213,6 +225,39 @@ class AppleArtistVisualsService {
             artist.artistId,
             _metadata.deviceStorefront,
           ));
+    return _fetchEditorial(artistName, page);
+  }
+
+  /// Reuse the already resolved artist from the manual Refresh Artist Info
+  /// job instead of resolving the same name a second time. A matching artist
+  /// name is the minimum requirement for followed-only Spotify artists.
+  /// Where local track titles exist the normal page lookup also cross-checks
+  /// recordings; we do not apply an unknown album cover as a logo.
+  Future<bool> refreshFromArtistData(
+    String artistName,
+    AppleMusicArtistData data,
+  ) async {
+    final expected = recommendationKey(artistName);
+    if (expected.isEmpty || recommendationKey(data.artist.name) != expected ||
+        data.artist.artistId.isEmpty) return false;
+    final source = Uri.tryParse(data.artist.url ?? '');
+    final page = source != null &&
+            source.scheme == 'https' &&
+            source.host == 'music.apple.com'
+        ? source
+        : Uri.parse(AppleMusicMetadataService.artistPageUrl(
+            data.artist.artistId, _metadata.deviceStorefront));
+    final art = await _fetchEditorial(artistName, page, forceLogo: true);
+    if (art == null) return false;
+    final current = AppleArtistLogoCache.instance.cachedFor(artistName);
+    return current != null;
+  }
+
+  Future<AppleArtistVisuals?> _fetchEditorial(
+    String artistName,
+    Uri page, {
+    bool forceLogo = false,
+  }) async {
     final response = await _client
         .get(page, headers: const {
           'User-Agent': 'Mozilla/5.0 (compatible; Lokal/artist-art)',
@@ -220,6 +265,14 @@ class AppleArtistVisualsService {
         .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) return null;
     // Decode the often-large hydration payload away from the UI isolate.
-    return compute(parseAppleArtistVisuals, response.body);
+    final art = await compute(parseAppleArtistVisuals, response.body);
+    if (art == null || art.logoUrl == null) return art;
+    final cached = await AppleArtistLogoCache.instance.save(
+      artistName: artistName,
+      logoUrl: art.logoUrl!,
+      aspect: art.logoAspect,
+      force: forceLogo,
+    );
+    return art.withLogo(cached?.path);
   }
 }

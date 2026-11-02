@@ -1,3 +1,4 @@
+import 'package:flick/services/apple_music/apple_artist_logo_cache.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -85,6 +86,8 @@ Future<void> _bootstrapApp() async {
   unawaited(ProcessExitDiagnosticsService().reportPreviousExits());
 
   await Database.init();
+  // Hydrate saved logos before artist pages can paint their first frame.
+  await AppleArtistLogoCache.instance.restore();
 
   final externalPlaybackHandled = await ExternalPlaybackService().initialize();
   if (!externalPlaybackHandled) {
