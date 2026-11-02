@@ -161,7 +161,8 @@ class LokalDesktopSource extends NetworkSourceService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final seen = <String>{};
-      var uploaded = 0;
+      final repository = SongRepository();
+      var uploaded = 0, attempted = 0;
       for (final raw in events) {
         if (uploaded >= maxCovers) break;
         if (raw is! Map || raw['source'] != 'phone') continue;
@@ -180,11 +181,15 @@ class LokalDesktopSource extends NetworkSourceService {
         final lastSent = prefs.getInt(cacheKey) ?? 0;
         if (DateTime.now().millisecondsSinceEpoch - lastSent <
             const Duration(days: 30).inMilliseconds) continue;
-        final jpg = await _phoneCoverThumbnail(
-          SongRepository().songFromEntity(row),
-        );
-        if (jpg == null) continue;
-        final response = await http
+        // A single stats tick must not decode 50 large image files just
+        // because the first few songs lack artwork.
+        if (++attempted > maxCovers + 2) break;
+        try {
+          final jpg = await _phoneCoverThumbnail(
+            repository.songFromEntity(row),
+          );
+          if (jpg == null) continue;
+          final response = await http
             .post(
               credentials.origin.replace(
                 path: '/api/remote/history/artwork',
@@ -199,11 +204,15 @@ class LokalDesktopSource extends NetworkSourceService {
               }),
             )
             .timeout(const Duration(seconds: 8));
-        if (response.statusCode == 200) {
-          await prefs.setInt(
-            cacheKey, DateTime.now().millisecondsSinceEpoch,
-          );
-          uploaded++;
+          if (response.statusCode == 200) {
+            await prefs.setInt(
+              cacheKey, DateTime.now().millisecondsSinceEpoch,
+            );
+            uploaded++;
+          }
+        } on Object {
+          // A missing/corrupt cover or rejected image is isolated per song.
+          continue;
         }
       }
     } on Object {
