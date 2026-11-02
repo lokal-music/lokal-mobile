@@ -493,9 +493,9 @@ class _YouHeader extends StatelessWidget {
                                   // Never decode a multi-megapixel account
                                   // avatar for a 44px circle on cold entry.
                                   cacheWidth: (44 * MediaQuery.devicePixelRatioOf(context))
-                                      .ceil().clamp(44, 192),
+                                      .ceil().clamp(44, 192).toInt(),
                                   cacheHeight: (44 * MediaQuery.devicePixelRatioOf(context))
-                                      .ceil().clamp(44, 192),
+                                      .ceil().clamp(44, 192).toInt(),
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => Text(
                                     initial,
