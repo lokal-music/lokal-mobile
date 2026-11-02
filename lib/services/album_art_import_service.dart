@@ -351,19 +351,32 @@ class AlbumArtImportService {
         await temporary.delete();
       }
     }
-    await _songRepository.updateAlbumArtPaths(filePaths, file.path);
-    PlayerService().syncAlbumArtPaths(
-      filePaths: filePaths,
-      albumArtPath: file.path,
+    final expected = {
+      for (final song in songs)
+        if (song.filePath != null && song.filePath!.isNotEmpty)
+          song.filePath!: song.albumArt,
+    };
+    final applied = await _songRepository.updateAlbumArtPathsIfUnchanged(
+      expected, file.path,
     );
-    // Best effort: writable files carry their upgraded embedded image to other
-    // devices. Android content URIs still get the persistent in-app cover.
-    await _embedInFiles(songs, bytes);
+    if (applied.isNotEmpty) {
+      PlayerService().syncAlbumArtPaths(
+        filePaths: applied,
+        albumArtPath: file.path,
+      );
+      // Best effort: writable files carry their upgraded embedded image to
+      // other devices. Scoped-storage tracks keep the durable in-app cover.
+      final updatedPaths = applied.toSet();
+      await _embedInFiles(
+        songs.where((song) => updatedPaths.contains(song.filePath)).toList(),
+        bytes,
+      );
+    }
     return AlbumArtUpdateResult(
       albumName: songs.first.album ?? songs.first.title,
       albumArtist: songs.first.albumArtist ?? songs.first.artist,
       albumArtPath: file.path,
-      filePaths: filePaths,
+      filePaths: applied,
     );
   }
 
