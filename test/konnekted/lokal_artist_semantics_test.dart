@@ -1,7 +1,7 @@
 import 'package:flick/core/theme/lokal_theme.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/library/lokal_albums_artists.dart';
-import 'package:flick/features/konnekted/library/lokal_library_kit.dart';
+import 'package:flick/features/konnekted/konnekted_home.dart';
 import 'package:flick/models/song.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
