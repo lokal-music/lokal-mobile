@@ -25,17 +25,18 @@ class LibraryJobStatus {
     this.done = 0,
     this.total = 0,
     this.failed = 0,
+    this.updated = 0,
     this.cancelled = false,
   });
   final LibraryJob? job;
   final bool running, cancelled;
-  final int done, total, failed;
+  final int done, total, failed, updated;
   String get message =>
       '${job?.label ?? 'Library job'} · $done/$total${running
           ? ''
           : cancelled
           ? ' · Stopped'
-          : ' · Finished'}${failed > 0 ? ' · $failed unavailable' : ''}';
+          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated portraits updated' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
 }
 
 /// Explicit, serial metadata jobs. They update the metadata service's disk
@@ -93,7 +94,7 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
     }
     final artists = lokalArtists(songs);
     _cancel = false;
-    var done = 0, failed = 0;
+    var done = 0, failed = 0, updated = 0;
     void publish(bool running) {
       if (ref.mounted) {
         state = LibraryJobStatus(
@@ -102,6 +103,7 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
           done: done,
           total: artists.length,
           failed: failed,
+          updated: updated,
           cancelled: _cancel,
         );
       }
@@ -122,12 +124,13 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
             if (releases.isEmpty) failed++;
           } else {
             final info = await api.getArtistData(artist.name, refresh: true);
-            if (info == null) {
+            if (info == null ||
+                !await ref
+                    .read(artistMetadataProvider.notifier)
+                    .storeRefreshedPortrait(artist.name, info.info?.imageUrl)) {
               failed++;
             } else {
-              await ref
-                  .read(artistMetadataProvider.notifier)
-                  .refresh(artist.name, force: true);
+              updated++;
             }
           }
           LokalOnlineCatalogue.instance.invalidateArtist(artist.name);
