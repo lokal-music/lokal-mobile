@@ -40,7 +40,7 @@ class LibraryJobControl extends ConsumerWidget {
                       : () => unawaited(
                           ref
                               .read(libraryJobsProvider.notifier)
-                              .start(job, library.value!),
+                              .start(job, library.value ?? const []),
                         ),
                 ),
               ),
