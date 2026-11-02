@@ -104,6 +104,18 @@ void main() {
     expect(observed, ['/cache/old-portrait.jpg', '/cache/new-portrait.jpg']);
   });
 
+  test('manual refresh sorts local and followed artist names together', () {
+    final order = alphabeticalArtistRefreshNames(
+      ['ZHU', 'Tyler, the Creator', 'M83'],
+      ['Asake', 'zhu', 'Burna Boy', 'M83'],
+    );
+    expect(
+      order,
+      ['Asake', 'Burna Boy', 'M83', 'Tyler, the Creator', 'ZHU'],
+    );
+    expect(alphabeticalArtistRefreshNames([], ['B', 'a']), ['a', 'B']);
+  });
+
   test('forced portrait refresh uses a new cache identity', () {
     final first = DateTime.fromMicrosecondsSinceEpoch(1700000000000000);
     final second = first.add(const Duration(microseconds: 1));
