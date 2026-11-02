@@ -2,6 +2,7 @@ import 'package:flick/features/songs/widgets/song_actions_bottom_sheet.dart';
 import 'package:flick/features/library_jobs/artist_metadata.dart';
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flick/features/appearance/lokal_performance_advisor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -311,9 +312,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
           .filter()
           .nameEqualTo(widget.artist, caseSensitive: false)
           .findFirst();
-      if (previous?.artPath?.isNotEmpty == true) {
+      if (previous?.artPath?.isNotEmpty == true &&
+          await File(previous!.artPath!).exists()) {
         ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
-          widget.artist, previous!.artPath!,
+          widget.artist, previous.artPath!,
         );
         return;
       }
