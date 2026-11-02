@@ -315,7 +315,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       if (previous?.artPath?.isNotEmpty == true &&
           await File(previous!.artPath!).exists()) {
         ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
-          widget.artist, previous.artPath!,
+          widget.artist, previous!.artPath!,
         );
         return;
       }
