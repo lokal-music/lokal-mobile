@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:isar_community/isar.dart';
 
 import '../../core/utils/audio_metadata_utils.dart';
+import '../../core/utils/artist_credits.dart';
 import '../../core/utils/string_sort_utils.dart';
 import '../database.dart';
 import '../../models/song.dart';
@@ -715,9 +716,14 @@ class RecentlyPlayedRepository {
       );
       songAccumulator.addPlay(entry.playedAt);
 
-      final artistKey = song.artist.trim().isEmpty
-          ? l10n.unknownArtist
-          : song.artist.trim();
+      // A collaboration is a single play by its lead artist, not a new
+      // composite artist (which has no corresponding profile portrait).
+      final primaryArtist = primaryArtistCredit(song.artist);
+      final artistKey = primaryArtist.isNotEmpty
+          ? primaryArtist
+          : (primaryArtistCredit(song.albumArtist).isNotEmpty
+              ? primaryArtistCredit(song.albumArtist)
+              : l10n.unknownArtist);
       final artistAccumulator = artistStats.putIfAbsent(
         artistKey,
         () => _ArtistRecapAccumulator(artistKey),
