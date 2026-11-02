@@ -50,7 +50,13 @@ class AppleArtistLogoCache {
   Future<void> restore() => _restoring ??= _restore();
 
   Future<void> _restore() async {
-    final prefs = await _preferences();
+    SharedPreferences prefs;
+    try {
+      prefs = await _preferences();
+    } catch (_) {
+      // A platform preference failure must not prevent app startup.
+      return;
+    }
     final value = prefs.getString(storageKey);
     if (value == null) return;
     try {
@@ -90,7 +96,7 @@ class AppleArtistLogoCache {
     final saved = _logos[key];
     if (!force && saved != null && await File(saved.path).exists()) return saved;
     if (_pending[key] case final existing?) return existing;
-    final future = _download(key, uri, aspect, force: force);
+    final future = _download(key, uri, aspect);
     _pending[key] = future;
     try {
       return await future;
@@ -105,9 +111,8 @@ class AppleArtistLogoCache {
   Future<CachedArtistLogo?> _download(
     String key,
     Uri uri,
-    double aspect, {
-    required bool force,
-  }) async {
+    double aspect,
+  ) async {
     final response = await _client.get(uri).timeout(const Duration(seconds: 12));
     final bytes = response.bodyBytes;
     if (response.statusCode != 200 ||
