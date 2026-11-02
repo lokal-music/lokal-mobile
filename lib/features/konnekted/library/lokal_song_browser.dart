@@ -331,8 +331,7 @@ class _LokalSongBrowserState extends ConsumerState<LokalSongBrowser> {
       case LokalSongSort.artist:
         final artistKeys = <String, String>{
           for (final song in songs)
-            song.id: (song.sourceType == 'lokal'
-                ? creditedLeadArtist(song) : song.artist).toLowerCase(),
+            song.id: creditedLeadArtist(song).toLowerCase(),
         };
         songs.sort((a, b) {
           final c = artistKeys[a.id]!.compareTo(artistKeys[b.id]!);
