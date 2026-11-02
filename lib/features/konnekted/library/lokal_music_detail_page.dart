@@ -314,8 +314,19 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
           .findFirst();
       if (previous?.artPath?.isNotEmpty == true &&
           await File(previous!.artPath!).exists()) {
+        // Migrate existing cached images to permanent storage when revisited.
+        final durable = await persistArtistPortraitFile(
+          widget.artist, previous.artPath!,
+        );
+        if (durable != previous.artPath) {
+          previous.artPath = durable;
+          await Database.instance.writeTxn(
+            () => Database.artists.put(previous),
+          );
+        }
+        if (!mounted) return;
         ref.read(artistMetadataProvider.notifier).publishSavedPortrait(
-          widget.artist, previous!.artPath!,
+          widget.artist, durable,
         );
         return;
       }
