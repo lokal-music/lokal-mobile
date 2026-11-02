@@ -60,11 +60,16 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.byType(BackdropFilter), findsNothing);
+    final frost = find.byType(LokalDetailProgressiveTopBlur);
+    final frostFilters = find.descendant(
+      of: frost,
+      matching: find.byType(BackdropFilter),
+    );
+    expect(frostFilters, findsNothing);
     expect(find.byType(LokalDetailFloatingControls), findsOneWidget);
     controller.jumpTo(340);
     await tester.pump();
-    expect(find.byType(BackdropFilter), findsWidgets);
+    expect(frostFilters, findsOneWidget);
     expect(find.byType(LokalDetailFloatingControls), findsOneWidget);
     final mask = tester.widget<ShaderMask>(
       find.descendant(
