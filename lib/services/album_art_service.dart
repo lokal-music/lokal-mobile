@@ -55,8 +55,19 @@ class AlbumArtService {
 
   String? _networkArtworkKey(String sourcePath, String? marker) {
     final uri = Uri.tryParse(sourcePath);
-    if (uri == null || (uri.scheme != 'smb' && uri.scheme != 'webdav')) {
+    if (uri == null ||
+        (uri.scheme != 'smb' &&
+            uri.scheme != 'webdav' &&
+            uri.scheme != 'lokal')) {
       return null;
+    }
+    // Desktop artwork is also fetched by a stable remote ID. Index the
+    // downloaded image in durable support storage, so offline cards can
+    // restore it after a force-close without contacting the paired PC again.
+    if (uri.scheme == 'lokal') {
+      final desktopId = markerForDesktopArtwork(sourcePath, marker);
+      if (desktopId == null) return null;
+      return 'lokal://${uri.host}/cover/${Uri.encodeComponent(desktopId)}';
     }
     final prefix = '${uri.scheme}-cover://';
     if (marker != null && marker.startsWith(prefix)) {
@@ -78,6 +89,20 @@ class AlbumArtService {
     } catch (_) {
       return sourcePath;
     }
+  }
+
+  @visibleForTesting
+  static String? markerForDesktopArtwork(
+    String audioSourcePath,
+    String? coverMarker,
+  ) {
+    final uri = Uri.tryParse(audioSourcePath);
+    if (uri == null || uri.scheme != 'lokal' || uri.host.isEmpty) return null;
+    if (coverMarker != null && coverMarker.startsWith('lokal-cover://')) {
+      final id = coverMarker.substring('lokal-cover://'.length);
+      if (id.isNotEmpty) return id;
+    }
+    return uri.pathSegments.isNotEmpty ? uri.pathSegments.last : null;
   }
 
   Future<File> _networkIndexFile(String key) async {

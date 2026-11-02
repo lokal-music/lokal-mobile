@@ -2,6 +2,7 @@ import '../milestone_service.dart';
 import '../local_metadata_repair.dart';
 import '../../models/song.dart';
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:isar_community/isar.dart';
@@ -226,6 +227,11 @@ class LinkSyncCoordinator {
       await socket.request('history.push', {'items': pushed});
       _requireReady();
       await prefs.setInt(pushKey, outgoing['cursor'] as int);
+      // The history cursor never waits on cover decoding or image transfer.
+      // Art upload is bounded and can retry separately from listening stats.
+      unawaited(LokalDesktopSource.instance.uploadHistoryArtwork(
+        credentials, pushed, maxCovers: 2,
+      ));
     }
 
     // The desktop currently caps replies at 250 events. Consume only one
@@ -410,6 +416,11 @@ class LinkSyncCoordinator {
     if (!_background) {
       await _reconcileDesktopPlaylists();
       await _reconcileRecentDesktopHistory();
+      // Backfill cover art for plays acknowledged by older desktop versions.
+      // Do not make a successful full sync wait for optional image uploads.
+      unawaited(source.uploadRecentHistoryArtwork(
+        credentials, maxCovers: 8,
+      ));
     }
     _requireReady();
     _report(LinkSyncPhase.finalizing);
