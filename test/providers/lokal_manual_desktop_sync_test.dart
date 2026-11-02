@@ -50,6 +50,30 @@ void main() {
     expect(screen, contains(': _syncNow,'));
     expect(screen, contains('Full desktop-library, metadata, likes and playlist sync is manual'));
   });
+  test('explicit Sync now rechecks desktop catalogue while startup stays light', () {
+    final sync = File('lib/services/link/link_sync_coordinator.dart')
+        .readAsStringSync();
+    final source = File('lib/services/link/lokal_desktop_source.dart')
+        .readAsStringSync();
+    expect(sync, contains('final refreshCatalog = importCatalog ||'));
+    expect(sync, contains('!_background ||'));
+    expect(sync, contains('if (refreshCatalog) {'));
+    expect(sync, contains('await for (final progress in source.syncLibrary(server))'));
+    expect(source, contains("queryParameters: {'offset': '$offset', 'limit': '250'}"));
+    expect(source, contains('final matchCandidates = await SongRepository().getAllSongs();'));
+    expect(source, contains('candidates: matchCandidates,'));
+    expect(source, contains('final local = entity == null'));
+  });
+
+  test('explicit sync reprojects already-pulled desktop history after catalogue', () {
+    final sync = File('lib/services/link/link_sync_coordinator.dart')
+        .readAsStringSync();
+    expect(sync, contains('await _reconcileRecentDesktopHistory();'));
+    expect(sync, contains('.sortByPlayedAtDesc()'));
+    expect(sync, contains('.limit(500)'));
+    expect(sync, contains('await RecentlyPlayedRepository().recordLinkPlays(projected);'));
+  });
+
   test('automatic stats path is bounded and excludes catalog operations', () {
     final coordinator = File('lib/services/link/link_sync_coordinator.dart')
         .readAsStringSync();

@@ -480,7 +480,7 @@ class LokalTrackRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.lokal;
     final second = subtitle ??
-        (song.sourceType == 'lokal' ? creditedLeadArtist(song) : song.artist);
+        creditedLeadArtist(song);
     final available =
         song.sourceType != 'lokal' ||
         (ref.watch(lokalSongAvailableProvider(song)).value ?? false);
