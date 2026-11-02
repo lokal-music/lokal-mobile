@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flick/core/utils/artist_credits.dart';
 import 'package:flick/features/library_jobs/artist_metadata.dart';
+import 'package:flick/features/library_jobs/library_jobs.dart';
 import 'package:flick/models/song.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,4 +83,27 @@ void main() {
       expect(parsed, ['Newest']);
     },
   );
+  test('forced portrait refresh uses a new cache identity', () {
+    final first = DateTime.fromMicrosecondsSinceEpoch(1700000000000000);
+    final second = first.add(const Duration(microseconds: 1));
+    final originalKey = refreshedArtistPortraitCacheKey(' M83 ', first);
+    expect(originalKey, contains('m83'));
+    expect(originalKey, refreshedArtistPortraitCacheKey('m83', first));
+    expect(originalKey, isNot(refreshedArtistPortraitCacheKey('m83', second)));
+    expect(originalKey, isNot(refreshedArtistPortraitCacheKey('other', first)));
+  });
+
+  test('artist refresh reports updated portraits separately from unavailable', () {
+    const status = LibraryJobStatus(
+      job: LibraryJob.artists,
+      done: 4,
+      total: 4,
+      updated: 3,
+      failed: 1,
+    );
+    expect(status.message, contains('3 portraits updated'));
+    expect(status.message, contains('1 unavailable'));
+    expect(status.message, contains('Finished'));
+  });
+
 }
