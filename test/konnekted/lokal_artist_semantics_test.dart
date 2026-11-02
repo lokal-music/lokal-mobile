@@ -1,6 +1,7 @@
 import 'package:flick/core/theme/lokal_theme.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/features/konnekted/library/lokal_albums_artists.dart';
+import 'package:flick/features/konnekted/library/lokal_library_kit.dart';
 import 'package:flick/models/song.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -9,6 +10,43 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('artist portraits and cover placeholders have equal diameter',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    const song = Song(
+      id: 'artist-cover',
+      title: 'Track',
+      artist: 'Artist With Tracks',
+      duration: Duration(minutes: 3),
+      fileType: 'FLAC',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          lokalArtistsProvider.overrideWithValue(const AsyncData([
+            LokalArtist('Artist With Tracks', [song]),
+            LokalArtist('Artist Without Tracks', []),
+          ])),
+        ],
+        child: MaterialApp(
+          theme: LokalTheme.build(LokalTokens.resolve(LokalThemeId.dark)),
+          home: const LokalArtistsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final fallbackArt = tester.widget<KonnektedArtwork>(
+      find.byType(KonnektedArtwork).first,
+    );
+    expect(fallbackArt.size, 52);
+    expect(fallbackArt.radius, 26);
+    final placeholder = tester.widget<CircleAvatar>(
+      find.byType(CircleAvatar).first,
+    );
+    expect(placeholder.radius, 26);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'artist row announces name and count once, with favorite action',
     (tester) async {
