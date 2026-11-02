@@ -1,4 +1,5 @@
 import 'package:flick/core/theme/lokal_theme.dart';
+import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/widgets/common/overflow_marquee_title.dart';
 import 'package:flick/data/repositories/recently_played_repository.dart';
@@ -76,6 +77,7 @@ Widget _app({
   List<MilestoneRecord> milestones = const [],
   bool persistentDock = false,
   double textScale = 1,
+  bool disableAnimations = true,
   VoidCallback? onDockTap,
 }) => ProviderScope(
   overrides: [
@@ -91,7 +93,7 @@ Widget _app({
         size: const Size(390, 2400),
         padding: const EdgeInsets.only(top: 24, bottom: 24),
         textScaler: TextScaler.linear(textScale),
-        disableAnimations: true,
+        disableAnimations: disableAnimations,
       ),
       child: Scaffold(
         body: persistentDock
@@ -277,6 +279,63 @@ void main() {
     await tester.tap(find.text('Month'));
     await tester.pump();
     expect(find.text('160'), findsOneWidget);
+  });
+
+  testWidgets('animations-off setting does not delay You stats', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    AppConstants.setAnimationsEnabled(false);
+    addTearDown(() => AppConstants.setAnimationsEnabled(true));
+    _tall(tester);
+    await tester.pumpWidget(
+      _app(
+        onNavigate: (_) {},
+        disableAnimations: false,
+        recaps: {
+          ListeningRecapPeriod.weekly: _recap(
+            ListeningRecapPeriod.weekly, plays: 12,
+          ),
+        },
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(DiscoveryArtwork), findsOneWidget);
+    expect(find.text('48 min'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cold entry paints a responsive You skeleton before recaps', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    _tall(tester);
+    await tester.pumpWidget(
+      _app(
+        onNavigate: (_) {},
+        disableAnimations: false,
+        recaps: {
+          ListeningRecapPeriod.weekly: _recap(
+            ListeningRecapPeriod.weekly, plays: 12,
+          ),
+        },
+      ),
+    );
+    await tester.pump();
+    // The header and navigation remain interactive during the tab slide;
+    // portraits and recap processing do not start until entry is settled.
+    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(find.text('RECAP'), findsOneWidget);
+    expect(find.byType(DiscoveryArtwork), findsNothing);
+    expect(find.text('Nothing yet'), findsNWidgets(3));
+
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(find.byType(DiscoveryArtwork), findsNothing);
+    await tester.pump(const Duration(milliseconds: 220));
+    await tester.pump();
+    expect(find.byType(DiscoveryArtwork), findsOneWidget);
+    expect(find.text('48 min'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('recap label and portrait use the same lead artist per period', (
