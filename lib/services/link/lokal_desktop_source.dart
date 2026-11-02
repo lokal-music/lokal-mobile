@@ -259,7 +259,7 @@ class LokalDesktopSource extends NetworkSourceService {
           .get(
             credentials.origin.replace(
               path: '/api/remote/library/tracks',
-              queryParameters: {'offset': '$offset', 'limit': '500'},
+              queryParameters: {'offset': '$offset', 'limit': '250'},
             ),
             headers: _headers(credentials),
           )
@@ -731,8 +731,9 @@ class LokalDesktopSource extends NetworkSourceService {
 
   Future<Song> importTrack(
     NetworkServerEntity server,
-    Map<String, dynamic> track,
-  ) async {
+    Map<String, dynamic> track, {
+    List<Song>? matchCandidates,
+  }) async {
     final remoteId = track['id']?.toString();
     if (remoteId == null || remoteId.isEmpty) {
       throw const FormatException('Desktop song is missing its identifier.');
@@ -758,7 +759,14 @@ class LokalDesktopSource extends NetworkSourceService {
     final key =
         track['track_key'] ??
         '${track['artist']?.toString().trim().toLowerCase()}|${track['title']?.toString().trim().toLowerCase()}|${(track['duration'] as num? ?? 0).round()}';
-    final local = await journal.match({...track, 'track_key': key});
+    // Existing remote IDs can be updated directly. Avoid reading and
+    // re-matching the entire phone library for every desktop track.
+    final local = entity == null
+        ? await journal.match(
+            {...track, 'track_key': key},
+            candidates: matchCandidates,
+          )
+        : null;
     if (local != null && local.sourceType != 'lokal') {
       final row = await Database.songs.get(int.parse(local.id));
       final genre = _genre(track);
@@ -1122,6 +1130,9 @@ class LokalDesktopSource extends NetworkSourceService {
     final credentials = await _credentials(server);
     var offset = 0, imported = 0, total = 0;
     final owned = <String>{};
+    // One snapshot of matching candidates per manual sync, not one expensive
+    // full-library read per newly imported desktop track.
+    final matchCandidates = await SongRepository().getAllSongs();
     do {
       final response = await http
           .get(
@@ -1140,7 +1151,7 @@ class LokalDesktopSource extends NetworkSourceService {
       for (final raw in items) {
         final track = Map<String, dynamic>.from(raw as Map);
         owned.add(track['id'].toString());
-        await importTrack(server, track);
+        await importTrack(server, track, matchCandidates: matchCandidates);
         imported++;
       }
       offset += items.length;
