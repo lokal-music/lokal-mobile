@@ -11,11 +11,13 @@ import 'package:flick/features/discovery/recommendation_match.dart';
 import 'package:flick/features/konnekted/library/lokal_online_catalogue.dart';
 import 'package:flick/services/apple_music/apple_music_metadata_service.dart';
 import 'package:flick/services/apple_music/apple_artist_visuals_service.dart';
+import 'package:flick/services/artwork_repair_service.dart';
+import 'package:flick/providers/songs_provider.dart';
 import 'package:flick/models/song.dart';
 
 enum LibraryJob {
   videos('Find music videos'),
-  releases('Refresh album releases'),
+  releases('Refresh album info and covers'),
   artists('Refresh artist info');
 
   const LibraryJob(this.label);
@@ -40,7 +42,7 @@ class LibraryJobStatus {
           ? ''
           : cancelled
           ? ' · Stopped'
-          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated artist assets refreshed' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
+          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated artist assets refreshed' : job == LibraryJob.releases ? ' · $updated covers upgraded' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
 }
 
 /// Predictable manual-refresh sequence, including followed artists without
@@ -67,9 +69,13 @@ List<String> alphabeticalArtistRefreshNames(
 /// cache without rewriting local audio tags or starting work in the background.
 class LibraryJobs extends Notifier<LibraryJobStatus> {
   bool _cancel = false;
+  ArtworkRepairService? _activeRepair;
   @override
   LibraryJobStatus build() {
-    ref.onDispose(() => _cancel = true);
+    ref.onDispose(() {
+      _cancel = true;
+      _activeRepair?.cancel();
+    });
     ref.listen(musicVideoIndexProvider, (previous, next) {
       if (next.scanning || previous?.scanning == true) {
         state = LibraryJobStatus(
@@ -86,6 +92,7 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
 
   void cancel() {
     _cancel = true;
+    _activeRepair?.cancel();
     if (state.job == LibraryJob.videos) {
       ref.read(musicVideoIndexProvider.notifier).cancel();
     }
@@ -119,20 +126,23 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
     // Merge before sorting: imported Spotify/followed artists otherwise ran
     // after every library artist, making manual refresh appear out of order.
     final artistNames = alphabeticalArtistRefreshNames(
-      lokalArtists(songs).map((artist) => artist.name),
+      job == LibraryJob.releases
+          ? lokalAlbums(songs).map((album) => album.albumArtist)
+          : lokalArtists(songs).map((artist) => artist.name),
       job == LibraryJob.artists
           ? ArtistFollowStore.instance.knownNames
           : const <String>[],
     );
     _cancel = false;
     var done = 0, failed = 0, updated = 0;
+    var total = artistNames.length;
     void publish(bool running) {
       if (ref.mounted) {
         state = LibraryJobStatus(
           job: job,
           running: running,
           done: done,
-          total: artistNames.length,
+          total: total,
           failed: failed,
           updated: updated,
           cancelled: _cancel,
@@ -142,6 +152,35 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
 
     publish(true);
     try {
+      if (job == LibraryJob.releases && !_cancel && ref.mounted) {
+        // Upgrade existing covers first, so large libraries don't wait for
+        // hundreds of optional Apple Music release lookups before seeing a
+        // single improved image. Album metadata refresh follows afterward.
+        final artistDone = done;
+        final artistFailures = failed;
+        final repair = ArtworkRepairService();
+        _activeRepair = repair;
+        try {
+          final result = await repair.refresh(onProgress: (progress) {
+            total = artistNames.length + progress.total;
+            done = artistDone + progress.checked;
+            failed = artistFailures + progress.failed;
+            updated = progress.updated;
+            publish(true);
+          });
+          if (result.updated > 0 && ref.mounted) {
+            // The list and album pages use live Song objects, not a lookup
+            // cache; invalidate them after durable cover paths are saved.
+            ref.invalidate(songsProvider);
+            ref.invalidate(songsByAlbumProvider);
+          }
+        } catch (_) {
+          failed++;
+        } finally {
+          _activeRepair = null;
+          repair.dispose();
+        }
+      }
       for (final artistName in artistNames) {
         if (_cancel || !ref.mounted) break;
         try {
@@ -183,11 +222,7 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
         }
         done++;
         publish(true);
-        // Missing portraits are artist-specific (e.g. no Apple Music match).
-        // Do not abort the entire artist refresh after five unmatched names.
-        if (job == LibraryJob.releases && failed >= 5 && failed == done) {
-          break;
-        }
+        // An unavailable catalogue entry must not abort the user's refresh.
         if (!_cancel) {
           await Future<void>.delayed(const Duration(milliseconds: 500));
         }

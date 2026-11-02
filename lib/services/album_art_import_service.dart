@@ -318,6 +318,68 @@ class AlbumArtImportService {
     );
   }
 
+  /// A maintenance upgrade is not a manually chosen cover. Keep it in the
+  /// durable support directory rather than album_art_overrides, so future
+  /// low-resolution refreshes remain eligible and manual covers stay protected.
+  /// A single content-addressed file is shared by all repaired album tracks.
+  Future<AlbumArtUpdateResult> applyAutomaticRepair({
+    required List<Song> songs,
+    required Uint8List bytes,
+  }) async {
+    if (songs.isEmpty || !_looksLikeImage(bytes)) {
+      throw const AlbumArtImportException('No valid album artwork to repair.');
+    }
+    final filePaths = songs.map((song) => song.filePath)
+        .whereType<String>().where((path) => path.isNotEmpty).toSet().toList();
+    if (filePaths.isEmpty) {
+      throw const AlbumArtImportException('Album has no local files.');
+    }
+    final support = await getApplicationSupportDirectory();
+    final directory = Directory(
+      '${support.path}${Platform.pathSeparator}album_art_repairs',
+    );
+    await directory.create(recursive: true);
+    final digest = sha256.convert(bytes).toString();
+    final file = File('${directory.path}${Platform.pathSeparator}$digest.cover');
+    if (!await file.exists()) {
+      final temporary = File('${file.path}.part');
+      await temporary.writeAsBytes(bytes, flush: true);
+      try {
+        await temporary.rename(file.path);
+      } on FileSystemException {
+        if (!await file.exists()) rethrow;
+        await temporary.delete();
+      }
+    }
+    final expected = {
+      for (final song in songs)
+        if (song.filePath != null && song.filePath!.isNotEmpty)
+          song.filePath!: song.albumArt,
+    };
+    final applied = await _songRepository.updateAlbumArtPathsIfUnchanged(
+      expected, file.path,
+    );
+    if (applied.isNotEmpty) {
+      PlayerService().syncAlbumArtPaths(
+        filePaths: applied,
+        albumArtPath: file.path,
+      );
+      // Best effort: writable files carry their upgraded embedded image to
+      // other devices. Scoped-storage tracks keep the durable in-app cover.
+      final updatedPaths = applied.toSet();
+      await _embedInFiles(
+        songs.where((song) => updatedPaths.contains(song.filePath)).toList(),
+        bytes,
+      );
+    }
+    return AlbumArtUpdateResult(
+      albumName: songs.first.album ?? songs.first.title,
+      albumArtist: songs.first.albumArtist ?? songs.first.artist,
+      albumArtPath: file.path,
+      filePaths: applied,
+    );
+  }
+
   Future<AlbumArtUpdateResult> removeCustomArtworkForSong(Song song) async {
     final filePath = song.filePath;
     if (filePath == null || filePath.isEmpty) {
@@ -854,10 +916,12 @@ class AlbumArtImportService {
 
   String _searchArtistName(Song song) {
     final albumArtist = song.albumArtist?.trim();
-    if (albumArtist != null && albumArtist.isNotEmpty) {
-      return albumArtist;
-    }
-    return song.artist.trim();
+    final credit = albumArtist != null && albumArtist.isNotEmpty
+        ? albumArtist
+        : song.artist.trim();
+    // A combined album credit such as "SZA feat. Kendrick Lamar" produces
+    // fewer relevant MusicBrainz/iTunes covers than its actual lead artist.
+    return splitArtistCredits(credit).firstOrNull ?? credit;
   }
 
   bool _looksLikeImage(Uint8List bytes) {
