@@ -55,6 +55,14 @@ class LibraryJobControl extends ConsumerWidget {
               value: status.total > 0 ? status.done / status.total : null,
               color: context.lokal.accent,
             ),
+          if (!active && status.job == job && status.done > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                status.message,
+                style: TextStyle(color: context.lokal.text, fontSize: 12),
+              ),
+            ),
           if (!active)
             Text(
               job == LibraryJob.videos
