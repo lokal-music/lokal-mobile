@@ -10,6 +10,7 @@ import 'package:flick/features/konnekted/konnekted_dock.dart';
 import 'package:flick/features/konnekted/konnekted_shell.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_header.dart';
 import 'package:flick/features/konnekted/library/lokal_detail_fixed_backdrop.dart';
+import 'package:flick/features/konnekted/library/lokal_detail_scroll_chrome.dart';
 import 'package:flick/features/konnekted/library/lokal_genres.dart';
 import 'package:flick/features/konnekted/library/lokal_music_detail_page.dart';
 import 'package:flick/features/konnekted/library/lokal_online_catalogue.dart';
@@ -233,6 +234,14 @@ void main() {
     // opaque so the image doesn't bleed through rows during scrolling.
     expect(scaffold.body, isA<Stack>());
     expect(find.byType(LokalDetailFixedBackdrop), findsOneWidget);
+    expect(find.byType(LokalDetailHeroWash), findsOneWidget);
+    expect(find.byType(LokalDetailProgressiveTopBlur), findsOneWidget);
+    expect(find.byType(LokalDetailFloatingControls), findsOneWidget);
+    expect(
+      tester.widget<LokalDetailHeader>(find.byType(LokalDetailHeader))
+          .controlsInOverlay,
+      isTrue,
+    );
     expect(
       find.byType(DecoratedSliver),
       findsOneWidget,
