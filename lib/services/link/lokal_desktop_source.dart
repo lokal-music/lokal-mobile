@@ -12,6 +12,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
+import 'package:image/image.dart' as img;
+import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:crypto/crypto.dart';
 
@@ -31,6 +35,32 @@ import 'link_journal.dart';
 import 'link_protocol.dart';
 import '../album_art_service.dart';
 
+/// A small independent artwork thumbnail for a history-only phone play.
+/// Never send a source file URI or embed megabytes of art in the link journal.
+@visibleForTesting
+Uint8List? linkHistoryCoverJpeg(Uint8List source) {
+  try {
+    final decoded = img.decodeImage(source);
+    if (decoded == null) return null;
+    final scale = decoded.width > decoded.height
+        ? decoded.width
+        : decoded.height;
+    final resized = scale > 384
+        ? img.copyResize(
+            decoded,
+            width: (decoded.width * 384 / scale).round().clamp(1, 384),
+            height: (decoded.height * 384 / scale).round().clamp(1, 384),
+          )
+        : decoded;
+    final encoded = Uint8List.fromList(img.encodeJpg(resized, quality: 72));
+    return encoded.isNotEmpty && encoded.length <= 180000
+        ? encoded
+        : null;
+  } on Object {
+    return null;
+  }
+}
+
 /// Desktop songs use the existing ranged network-player and bounded audio cache.
 /// The server row contains no token; encrypted storage remains the only token owner.
 class LokalDesktopSource extends NetworkSourceService {
@@ -48,6 +78,7 @@ class LokalDesktopSource extends NetworkSourceService {
   final Map<String, Future<String>> _downloads = {};
 
   bool supportsSizeMatching = false;
+  bool _historyArtworkUploading = false;
 
   Future<bool> requireOriginalFileSupport(
     LokalRemoteCredentials credentials,
@@ -67,6 +98,112 @@ class LokalDesktopSource extends NetworkSourceService {
     final capabilities = jsonDecode(response.body) as Map;
     supportsSizeMatching = capabilities['sizeMatching'] == true;
     return capabilities['contentMatching'] == true;
+  }
+
+  /// Upload a few small album covers for history-only phone recordings.
+  /// A ghost is non-playable until its original audio is copied; this only
+  /// preserves its artwork. History sync must succeed independently of art.
+  Future<void> uploadHistoryArtwork(
+    LokalRemoteCredentials credentials,
+    List<dynamic> events, {
+    int maxCovers = 2,
+  }) async {
+    if (_historyArtworkUploading || !Database.isInitialized || maxCovers <= 0) {
+      return;
+    }
+    _historyArtworkUploading = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final seen = <String>{};
+      var uploaded = 0;
+      for (final raw in events) {
+        if (uploaded >= maxCovers) break;
+        if (raw is! Map || raw['source'] != 'phone') continue;
+        final key = raw['track_key']?.toString() ?? '';
+        if (key.isEmpty || key.length > 1500 || !seen.add(key)) continue;
+        final wire = raw['track'];
+        if (wire is! Map) continue;
+        final id = int.tryParse(wire['id']?.toString() ?? '');
+        if (id == null) continue;
+        final row = await Database.songs.get(id);
+        if (row == null || row.sourceType != null || row.filePath.isEmpty) {
+          continue;
+        }
+        final cacheKey = 'lokal.link.artwork.${credentials.desktopId}.'
+            '${sha256.convert(utf8.encode(key))}';
+        final lastSent = prefs.getInt(cacheKey) ?? 0;
+        if (DateTime.now().millisecondsSinceEpoch - lastSent <
+            const Duration(days: 30).inMilliseconds) continue;
+        String? artwork = row.albumArtPath;
+        if (artwork == null || !await File(artwork).exists()) {
+          artwork = await AlbumArtService.instance.resolveArtworkPath(
+            existingPath: artwork,
+            audioSourcePath: row.filePath,
+          );
+        }
+        if (artwork == null || !await File(artwork).exists()) continue;
+        final file = File(artwork);
+        final stat = await file.stat();
+        if (stat.size <= 0 || stat.size > 8 * 1024 * 1024) continue;
+        final jpg = await compute(
+          linkHistoryCoverJpeg,
+          Uint8List.fromList(await file.readAsBytes()),
+        );
+        if (jpg == null) continue;
+        final response = await http
+            .post(
+              credentials.origin.replace(
+                path: '/api/remote/history/artwork',
+              ),
+              headers: {
+                ..._headers(credentials),
+                'content-type': 'application/json',
+              },
+              body: jsonEncode({
+                'track_key': key,
+                'image_base64': base64Encode(jpg),
+              }),
+            )
+            .timeout(const Duration(seconds: 8));
+        if (response.statusCode == 200) {
+          await prefs.setInt(
+            cacheKey, DateTime.now().millisecondsSinceEpoch,
+          );
+          uploaded++;
+        }
+      }
+    } on Object {
+      // This auxiliary transfer must never block listening statistics.
+    } finally {
+      _historyArtworkUploading = false;
+    }
+  }
+
+  /// Replay a small, recent window during explicit Sync now. Older mobile
+  /// plays may have been acknowledged before album artwork was supported.
+  Future<void> uploadRecentHistoryArtwork(
+    LokalRemoteCredentials credentials, {
+    int maxCovers = 8,
+  }) async {
+    if (!Database.isInitialized) return;
+    final rows = await Database.instance.playEventEntitys
+        .where()
+        .sortByPlayedAtDesc()
+        .limit(100)
+        .findAll();
+    await uploadHistoryArtwork(
+      credentials,
+      [
+        for (final row in rows)
+          if (row.source == 'phone')
+            {
+              'source': row.source,
+              'track_key': row.trackKey,
+              'track': jsonDecode(row.trackJson),
+            },
+      ],
+      maxCovers: maxCovers,
+    );
   }
 
   /// Only look up a desktop file's size when its metadata is opened.
