@@ -367,6 +367,30 @@ class SongRepository {
     });
   }
 
+  /// Install a refreshed cover only if the song still points at the artwork
+  /// measured before its online lookup. A concurrent manual selection or scan
+  /// must win over this asynchronous maintenance operation.
+  Future<List<String>> updateAlbumArtPathsIfUnchanged(
+    Map<String, String?> expectedPaths,
+    String newArtworkPath,
+  ) async {
+    if (expectedPaths.isEmpty) return const [];
+    final changed = <String>[];
+    await _isar.writeTxn(() async {
+      for (final entry in expectedPaths.entries) {
+        final row = await _isar.songEntitys
+            .filter()
+            .filePathEqualTo(entry.key)
+            .findFirst();
+        if (row == null || row.albumArtPath != entry.value) continue;
+        row.albumArtPath = newArtworkPath;
+        await _isar.songEntitys.put(row);
+        changed.add(entry.key);
+      }
+    });
+    return changed;
+  }
+
   Future<Set<String>> getReferencedAlbumArtPaths() async {
     final paths = await _isar.songEntitys
         .where()
