@@ -48,9 +48,7 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
       final artists = await Database.artists.where().findAll();
       if (!ref.mounted) return;
       state = {
-        for (final artist in artists)
-          if (artist.artPath?.isNotEmpty == true)
-            key(artist.name): artist.artPath!,
+        ...savedArtistPortraitPaths(artists),
         // Current-session refreshes win over the older database snapshot.
         ...state,
       };
@@ -272,6 +270,14 @@ Future<String> persistArtistPortraitFile(String artist, String sourcePath) async
   }
   return target.path;
 }
+
+/// Includes Spotify-imported artists that are not represented by local songs.
+@visibleForTesting
+Map<String, String> savedArtistPortraitPaths(Iterable<ArtistEntity> artists) => {
+  for (final artist in artists)
+    if (artist.artPath?.isNotEmpty == true)
+      ArtistMetadata.key(artist.name): artist.artPath!,
+};
 
 /// Unique cache identity for manual portrait refreshes. The URL alone would
 /// reuse a stale image; using a new key also changes the local FileImage path.
