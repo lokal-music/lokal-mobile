@@ -134,7 +134,7 @@ void main() {
       updated: 3,
       failed: 1,
     );
-    expect(status.message, contains('3 portraits refreshed'));
+    expect(status.message, contains('3 artist assets refreshed'));
     expect(status.message, contains('1 unavailable'));
     expect(status.message, contains('Finished'));
   });
