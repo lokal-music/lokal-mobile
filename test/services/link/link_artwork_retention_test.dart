@@ -57,6 +57,9 @@ void main() {
     expect(coordinator, contains('unawaited(LokalDesktopSource.instance.uploadHistoryArtwork('));
     expect(coordinator, contains('unawaited(source.uploadRecentHistoryArtwork('));
     expect(source, contains("path: '/api/remote/history/artwork'"));
+    expect(source, contains("'files', desktopTrackId, 'artwork'"));
+    expect(source, contains('await _uploadCopiedArtwork('));
+    expect(source, contains('entity.albumArtPath = artwork ?? entity.albumArtPath;'));
     expect(source, contains('const Duration(days: 30)'));
     expect(source, contains('maxCovers: maxCovers'));
     expect(journal, contains("'album_artist': song.albumArtist ?? ''"));
