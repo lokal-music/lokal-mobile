@@ -144,6 +144,19 @@ void main() {
     expect(originalKey, isNot(refreshedArtistPortraitCacheKey('other', first)));
   });
 
+  test('album refresh reports actual upgraded covers', () {
+    const status = LibraryJobStatus(
+      job: LibraryJob.releases,
+      done: 120,
+      total: 120,
+      updated: 38,
+      failed: 3,
+    );
+    expect(status.message, contains('38 covers upgraded'));
+    expect(status.message, contains('3 unavailable'));
+    expect(status.message, contains('Finished'));
+  });
+
   test('artist refresh reports updated portraits separately from unavailable', () {
     const status = LibraryJobStatus(
       job: LibraryJob.artists,
