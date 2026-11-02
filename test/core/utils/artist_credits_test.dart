@@ -33,10 +33,14 @@ void main() {
     expect(primaryArtistCredit('M83, ZHU'), 'M83');
     expect(primaryArtistCredit('Asake feat. Wizkid'), 'Asake');
     expect(primaryArtistCredit('Davido; Omah Lay'), 'Davido');
-    expect(primaryArtistCredit('Tyler, the Creator & Kali Uchis'),
-        'Tyler, the Creator');
-    expect(primaryArtistCredit('Earth, Wind & Fire, Guest'),
-        'Earth, Wind & Fire');
+    expect(
+      primaryArtistCredit('Tyler, the Creator & Kali Uchis'),
+      'Tyler, the Creator',
+    );
+    expect(
+      primaryArtistCredit('Earth, Wind & Fire, Guest'),
+      'Earth, Wind & Fire',
+    );
     expect(primaryArtistCredit(''), isEmpty);
     expect(primaryArtistCredit(null), isEmpty);
   });
