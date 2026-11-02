@@ -81,8 +81,7 @@ class LinkJournal {
     // Remote, public covers may be linked directly. A phone-local file URI
     // and an expiring provider-signed URL must never leave the device.
     if ((song.albumArt ?? '').startsWith('https://') &&
-        !RegExp(r'[?&](?:token|signature|expires|auth)=', caseSensitive: false)
-            .hasMatch(song.albumArt!))
+        !song.albumArt!.contains('?'))
       'artwork_url': song.albumArt,
   };
   Future<Song?> match(
