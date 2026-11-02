@@ -167,7 +167,11 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     if (!mounted || _relatedReady) return;
     _entryAnimation?.removeStatusListener(_onEntryStatus);
     setState(() => _relatedReady = true);
-    if (widget.isArtist) unawaited(_loadArtistVisuals());
+    // Let the new build compute the local artist song slice before using it
+    // as match evidence; deep-linked artist pages may pass no initial songs.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.isArtist) unawaited(_loadArtistVisuals());
+    });
   }
 
   void _updateHeroVisibility() {
@@ -181,8 +185,11 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
 
   Future<void> _loadArtistVisuals() async {
     if (!mounted || !widget.isArtist || !_relatedReady) return;
+    final knownLocalSongs = widget.localSongs.isNotEmpty
+        ? widget.localSongs
+        : (_cachedLocal ?? const <Song>[]);
     final titles = <String>{
-      for (final song in widget.localSongs.take(80)) ...[
+      for (final song in knownLocalSongs.take(80)) ...[
         song.title,
         if (song.album?.isNotEmpty == true) song.album!,
       ],
