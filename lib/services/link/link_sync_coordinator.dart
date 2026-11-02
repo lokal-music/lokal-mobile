@@ -290,15 +290,17 @@ class LinkSyncCoordinator {
     final prefs = await SharedPreferences.getInstance();
     final source = LokalDesktopSource.instance,
         server = await LokalDesktopSource.instance.ensureServer(credentials);
-    // A catalogue import is deliberately one-time. Subsequent explicit
-    // syncs need a lightweight, genre-only repair because desktop lookup
-    // results can predate the journal or fail to match when first received.
-    final reconcileGenres = !importCatalog &&
+    // Startup remains lightweight: only an explicit user-triggered full sync
+    // or a first-time merge walks the desktop catalogue. A one-time import
+    // prevents subsequently added PC tracks from ever reaching mobile.
+    final refreshCatalog = importCatalog ||
+        !_background ||
+        prefs.getBool('$_prefix.catalog') != true ||
+        prefs.getBool('$_prefix.owned_catalog_v2') != true;
+    final reconcileGenres = !refreshCatalog &&
         prefs.getBool('$_prefix.catalog') == true &&
         prefs.getBool('$_prefix.owned_catalog_v2') == true;
-    if (importCatalog ||
-        prefs.getBool('$_prefix.catalog') != true ||
-        prefs.getBool('$_prefix.owned_catalog_v2') != true) {
+    if (refreshCatalog) {
       _report(LinkSyncPhase.catalog);
       await for (final progress in source.syncLibrary(server)) {
         _requireReady();
