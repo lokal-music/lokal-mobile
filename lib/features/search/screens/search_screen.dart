@@ -945,8 +945,7 @@ class _SongTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final album = song.album;
     final suffix = subtitleSuffix;
-    final artistLabel = song.sourceType == 'lokal'
-        ? creditedLeadArtist(song) : song.artist;
+    final artistLabel = creditedLeadArtist(song);
     return LokalSwipeToQueue(
       song: song,
       child: ListTile(
