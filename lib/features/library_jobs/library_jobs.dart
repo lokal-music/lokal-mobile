@@ -5,6 +5,8 @@ import 'artist_metadata.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flick/features/music_videos/music_video_providers.dart';
 import 'package:flick/features/konnekted/library/lokal_library_groups.dart';
+import 'package:flick/features/konnekted/library/artist_follow_store.dart';
+import 'package:flick/features/discovery/recommendation_match.dart';
 import 'package:flick/features/konnekted/library/lokal_online_catalogue.dart';
 import 'package:flick/services/apple_music/apple_music_metadata_service.dart';
 import 'package:flick/models/song.dart';
@@ -25,17 +27,18 @@ class LibraryJobStatus {
     this.done = 0,
     this.total = 0,
     this.failed = 0,
+    this.updated = 0,
     this.cancelled = false,
   });
   final LibraryJob? job;
   final bool running, cancelled;
-  final int done, total, failed;
+  final int done, total, failed, updated;
   String get message =>
       '${job?.label ?? 'Library job'} · $done/$total${running
           ? ''
           : cancelled
           ? ' · Stopped'
-          : ' · Finished'}${failed > 0 ? ' · $failed unavailable' : ''}';
+          : ' · Finished'}${job == LibraryJob.artists ? ' · $updated portraits refreshed' : ''}${failed > 0 ? ' · $failed unavailable' : ''}';
 }
 
 /// Explicit, serial metadata jobs. They update the metadata service's disk
@@ -91,17 +94,28 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
       }
       return;
     }
-    final artists = lokalArtists(songs);
+    final artistNames = [
+      for (final artist in lokalArtists(songs)) artist.name,
+    ];
+    // The Artists list also contains imported/followed artists that do not
+    // have a track in the local library. Refresh their visible portraits too.
+    if (job == LibraryJob.artists) {
+      final seen = artistNames.map(recommendationKey).toSet();
+      for (final name in ArtistFollowStore.instance.knownNames) {
+        if (seen.add(recommendationKey(name))) artistNames.add(name);
+      }
+    }
     _cancel = false;
-    var done = 0, failed = 0;
+    var done = 0, failed = 0, updated = 0;
     void publish(bool running) {
       if (ref.mounted) {
         state = LibraryJobStatus(
           job: job,
           running: running,
           done: done,
-          total: artists.length,
+          total: artistNames.length,
           failed: failed,
+          updated: updated,
           cancelled: _cancel,
         );
       }
@@ -109,35 +123,38 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
 
     publish(true);
     try {
-      for (final artist in artists) {
+      for (final artistName in artistNames) {
         if (_cancel || !ref.mounted) break;
         try {
           final api = AppleMusicMetadataService.instance;
           if (job == LibraryJob.releases) {
             final releases = await api.searchAlbums(
-              artist.name,
+              artistName,
               limit: 100,
               refresh: true,
             );
             if (releases.isEmpty) failed++;
           } else {
-            final info = await api.getArtistData(artist.name, refresh: true);
-            if (info == null) {
+            final info = await api.getArtistData(artistName, refresh: true);
+            if (info == null ||
+                !await ref
+                    .read(artistMetadataProvider.notifier)
+                    .storeRefreshedPortrait(artistName, info.info?.imageUrl)) {
               failed++;
             } else {
-              await ref
-                  .read(artistMetadataProvider.notifier)
-                  .refresh(artist.name, force: true);
+              updated++;
             }
           }
-          LokalOnlineCatalogue.instance.invalidateArtist(artist.name);
+          LokalOnlineCatalogue.instance.invalidateArtist(artistName);
         } catch (_) {
           failed++;
         }
         done++;
         publish(true);
-        if (failed >= 5 && failed == done) {
-          break; // Stop after repeated unavailable results.
+        // Missing portraits are artist-specific (e.g. no Apple Music match).
+        // Do not abort the entire artist refresh after five unmatched names.
+        if (job == LibraryJob.releases && failed >= 5 && failed == done) {
+          break;
         }
         if (!_cancel) {
           await Future<void>.delayed(const Duration(milliseconds: 500));

@@ -16,6 +16,7 @@ import 'package:flick/core/theme/lokal_theme.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/data/repositories/recently_played_repository.dart';
 import 'package:flick/features/konnekted/konnekted_discovery.dart';
+import 'package:flick/features/discovery/discovery_artwork.dart';
 import 'package:flick/features/milestone/screens/milestones_screen.dart';
 import 'package:flick/features/recap/screens/listening_recap_screen.dart';
 import 'package:flick/features/settings/lokal/lokal_settings_group.dart';
@@ -772,6 +773,15 @@ class _RecapCard extends StatelessWidget {
     final detail = has
         ? (recap!.topArtist?.artist ?? '${_count(recap.totalPlays)} plays')
         : 'Play a few songs';
+    // Each period uses its own top artist, never the currently selected Stats
+    // period. DiscoveryArtwork prefers cached/local artist portraits and can
+    // resolve a verified remote image when there is no local picture.
+    final artistName = has ? recap?.topArtist?.artist.trim() : null;
+    final hasPortrait = artistName?.isNotEmpty == true;
+    final foreground = hasPortrait ? Colors.white : t.text;
+    final secondary = hasPortrait ? Colors.white.withValues(alpha: .84) : t.muted;
+    final accent = hasPortrait ? Colors.white : t.accent;
+
     return Semantics(
       button: true,
       label: lokalText(
@@ -785,53 +795,84 @@ class _RecapCard extends StatelessWidget {
           borderRadius: const BorderRadius.all(Radius.circular(20)),
           thickness: LokalGlassThickness.thin,
           shadow: false,
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (hasPortrait) ...[
+                DiscoveryArtwork(
+                  key: ValueKey('recap-portrait:${period.name}:$artistName'),
+                  kind: DiscoveryArtworkKind.artist,
+                  artist: artistName!,
+                  width: 156,
+                  height: 136,
+                  placeholder: ColoredBox(color: t.surface2),
+                ),
+                // Protect both the label and the listening stats regardless
+                // of artwork brightness; no blur or aggressive vignette.
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x87000000),
+                        Color(0x6A000000),
+                        Color(0xE0000000),
+                      ],
+                      stops: [0, .40, 1],
+                    ),
+                  ),
+                ),
+              ],
+              Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            _periodLabel(period).toUpperCase(),
-                            style: LokalTheme.label(t, color: t.accent),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _periodLabel(period).toUpperCase(),
+                                style: LokalTheme.label(t, color: accent),
+                              ),
+                            ),
+                            Icon(
+                              Icons.play_circle_fill_rounded,
+                              size: 20,
+                              color: accent,
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Text(
+                          headline,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: LokalTheme.sans,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: foreground,
                           ),
                         ),
-                        Icon(
-                          Icons.play_circle_fill_rounded,
-                          size: 20,
-                          color: t.accent,
+                        const SizedBox(height: 2),
+                        Text(
+                          detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: secondary),
                         ),
                       ],
                     ),
-                    const Spacer(),
-                    Text(
-                      headline,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: LokalTheme.sans,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: t.text,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      detail,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: t.muted),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

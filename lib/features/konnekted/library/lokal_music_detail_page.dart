@@ -1312,6 +1312,8 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
     SongActionsBottomSheet.show(
       context,
       row.owned ?? row.track.pending(),
+      queueActions: false,
+      hideMediaActions: true,
       extras: [
         if (row.owned == null)
           LokalSongMenuAction(

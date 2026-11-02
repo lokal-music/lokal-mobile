@@ -252,6 +252,7 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
+      expect(find.text('LOKAL'), findsOneWidget);
       await tapAndShare(tester, find.text(l10n.share).last);
       if (fail) {
         expect(find.text(l10n.shareFailed(shareError!)), findsOneWidget);
@@ -262,9 +263,9 @@ void main() {
       }
       final args = shares.last.arguments as Map;
       final path = (args['paths'] as List).single as String;
-      expect(p.basename(path), 'flick_share_${_song.id}.png');
+      expect(p.basename(path), 'lokal-card.png');
       expect(args['mimeTypes'], ['image/png']);
-      expect(args['text'], l10n.listeningToByOnFlick(_song.title, _song.artist));
+      expect(args['text'], '${_song.title} — ${_song.artist}\nLokal');
       final bytes = await tester.runAsync(() => File(path).readAsBytes());
       expect(bytes!.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
       expect(find.byType(CircularProgressIndicator), findsNothing);

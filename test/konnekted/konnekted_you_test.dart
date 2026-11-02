@@ -4,6 +4,7 @@ import 'package:flick/widgets/common/overflow_marquee_title.dart';
 import 'package:flick/data/repositories/recently_played_repository.dart';
 import 'package:flick/features/konnekted/konnekted_destination.dart';
 import 'package:flick/features/konnekted/konnekted_you.dart';
+import 'package:flick/features/discovery/discovery_artwork.dart';
 import 'package:flick/features/settings/lokal/lokal_settings_group.dart';
 import 'package:flick/models/song.dart';
 import 'package:flick/services/milestone_service.dart';
@@ -256,6 +257,11 @@ void main() {
     expect(find.text('48'), findsNWidgets(2));
     expect(find.text('6'), findsOneWidget);
     expect(find.text('48 min'), findsOneWidget);
+    // Each listening period paints its top artist behind the recap content.
+    final portraits = tester.widgetList<DiscoveryArtwork>(
+      find.byType(DiscoveryArtwork),
+    );
+    expect(portraits.map((portrait) => portrait.artist), ['M83', 'M83', 'M83']);
     expect(find.text('1,200 min'), findsOneWidget);
     expect(find.text('9:00 PM'), findsOneWidget);
     expect(find.text('Midnight City'), findsOneWidget);
