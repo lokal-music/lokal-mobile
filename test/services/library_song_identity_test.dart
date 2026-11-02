@@ -60,6 +60,23 @@ void main() {
   );
 
 
+  test('album owner is the display lead for local and linked featured credits', () {
+    final mobile = song(
+      'local', 'SZA song', '/music/sza.flac',
+      artist: 'Kendrick Lamar, SZA', albumArtist: 'SZA',
+    );
+    final desktop = song(
+      'desktop', 'Seedhe Maut song', 'lokal://1/sm',
+      artist: 'Badshah, Seedhe Maut', albumArtist: 'Seedhe Maut',
+      source: 'lokal',
+    );
+    expect(creditedLeadArtist(mobile), 'SZA');
+    expect(creditedLeadArtist(desktop), 'Seedhe Maut');
+    // The underlying credits are intentionally not rewritten.
+    expect(mobile.artist, 'Kendrick Lamar, SZA');
+    expect(desktop.artist, 'Badshah, Seedhe Maut');
+  });
+
   test('album owner must be a whole credited name, not a substring', () {
     final pc = song('pc', 'Track', 'lokal://1/track',
       artist: 'Annabelle, Bob', albumArtist: 'Anna', source: 'lokal');
