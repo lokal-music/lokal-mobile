@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:isar_community/isar.dart';
 
 import '../../core/utils/audio_metadata_utils.dart';
+import '../../core/utils/artist_credits.dart';
 import '../../core/utils/string_sort_utils.dart';
 import '../database.dart';
 import '../../models/song.dart';
@@ -696,6 +697,7 @@ class RecentlyPlayedRepository {
     }
 
     final songStats = <String, _SongRecapAccumulator>{};
+    final primaryArtists = <String, String>{};
     final artistStats = <String, _ArtistRecapAccumulator>{};
     final albumStats = <String, _AlbumRecapAccumulator>{};
     final playedDays = <DateTime>{};
@@ -715,12 +717,24 @@ class RecentlyPlayedRepository {
       );
       songAccumulator.addPlay(entry.playedAt);
 
-      final artistKey = song.artist.trim().isEmpty
-          ? l10n.unknownArtist
-          : song.artist.trim();
+      // A collaboration is a single play by its lead artist, not a new
+      // composite artist (which has no corresponding profile portrait).
+      // Reuse parsed credits across repeated plays of the same song. Recaps
+      // can span thousands of listens but only hundreds of distinct credits.
+      final primaryArtist = primaryArtists.putIfAbsent(
+        song.artist,
+        () => primaryArtistCredit(song.artist),
+      );
+      final artistKey = primaryArtist.isNotEmpty
+          ? primaryArtist
+          : primaryArtists.putIfAbsent(
+              song.albumArtist ?? '',
+              () => primaryArtistCredit(song.albumArtist),
+            );
+      final resolvedArtist = artistKey.isNotEmpty ? artistKey : l10n.unknownArtist;
       final artistAccumulator = artistStats.putIfAbsent(
-        artistKey,
-        () => _ArtistRecapAccumulator(artistKey),
+        resolvedArtist,
+        () => _ArtistRecapAccumulator(resolvedArtist),
       );
       artistAccumulator.addPlay(song, entry.playedAt);
 
@@ -729,7 +743,7 @@ class RecentlyPlayedRepository {
           : l10n.unknownAlbum;
       final albumArtist = (song.albumArtist?.trim().isNotEmpty ?? false)
           ? song.albumArtist!.trim()
-          : artistKey;
+          : resolvedArtist;
       final albumKey = '$albumArtist::$albumName';
       final albumAccumulator = albumStats.putIfAbsent(
         albumKey,

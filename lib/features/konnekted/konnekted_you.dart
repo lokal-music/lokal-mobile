@@ -1,4 +1,5 @@
 import 'package:flick/l10n/l10n.dart';
+import 'package:flick/core/utils/artist_credits.dart';
 
 import '../link/lokal_devices_card.dart';
 
@@ -770,14 +771,18 @@ class _RecapCard extends StatelessWidget {
     final headline = has
         ? '${_count(recap!.totalListeningTime.inMinutes)} min'
         : 'Nothing yet';
+    // Use the same lead artist for the card label and portrait lookup.
+    // Older/synced recaps can still contain unsplit multi-artist credits.
+    final artistName = has ? primaryArtistCredit(recap?.topArtist?.artist) : '';
     final detail = has
-        ? (recap!.topArtist?.artist ?? '${_count(recap.totalPlays)} plays')
+        ? (artistName.isNotEmpty
+            ? artistName
+            : '${_count(recap!.totalPlays)} plays')
         : 'Play a few songs';
     // Each period uses its own top artist, never the currently selected Stats
     // period. DiscoveryArtwork prefers cached/local artist portraits and can
     // resolve a verified remote image when there is no local picture.
-    final artistName = has ? recap?.topArtist?.artist.trim() : null;
-    final hasPortrait = artistName?.isNotEmpty == true;
+    final hasPortrait = artistName.isNotEmpty;
     final foreground = hasPortrait ? Colors.white : t.text;
     final secondary = hasPortrait ? Colors.white.withValues(alpha: .84) : t.muted;
     final accent = hasPortrait ? Colors.white : t.accent;
@@ -802,7 +807,7 @@ class _RecapCard extends StatelessWidget {
                 DiscoveryArtwork(
                   key: ValueKey('recap-portrait:${period.name}:$artistName'),
                   kind: DiscoveryArtworkKind.artist,
-                  artist: artistName!,
+                  artist: artistName,
                   width: 156,
                   height: 136,
                   placeholder: ColoredBox(color: t.surface2),

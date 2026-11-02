@@ -21,7 +21,11 @@ const _song = Song(
   fileType: 'FLAC',
 );
 
-ListeningRecap _recap(ListeningRecapPeriod period, {int plays = 12}) {
+ListeningRecap _recap(
+  ListeningRecapPeriod period, {
+  int plays = 12,
+  String artist = 'M83',
+}) {
   final now = DateTime(2026, 10, 20, 21);
   final range = period.rangeFor(now);
   return ListeningRecap(
@@ -36,7 +40,7 @@ ListeningRecap _recap(ListeningRecapPeriod period, {int plays = 12}) {
     peakHour: 21,
     topSong: null,
     topArtist: RankedRecapArtist(
-      artist: 'M83',
+      artist: artist,
       plays: plays,
       uniqueSongs: 1,
       listeningTime: Duration(minutes: plays * 4),
@@ -53,7 +57,7 @@ ListeningRecap _recap(ListeningRecapPeriod period, {int plays = 12}) {
     ],
     topArtists: [
       RankedRecapArtist(
-        artist: 'M83',
+        artist: artist,
         plays: plays,
         uniqueSongs: 1,
         listeningTime: Duration(minutes: plays * 4),
@@ -273,6 +277,47 @@ void main() {
     await tester.tap(find.text('Month'));
     await tester.pump();
     expect(find.text('160'), findsOneWidget);
+  });
+
+  testWidgets('recap label and portrait use the same lead artist per period', (
+    tester,
+  ) async {
+    _tall(tester);
+    await tester.pumpWidget(
+      _app(
+        onNavigate: (_) {},
+        recaps: {
+          ListeningRecapPeriod.weekly: _recap(
+            ListeningRecapPeriod.weekly,
+            artist: 'M83, ZHU',
+          ),
+          ListeningRecapPeriod.monthly: _recap(
+            ListeningRecapPeriod.monthly,
+            artist: 'Tyler, the Creator & Kali Uchis',
+          ),
+          ListeningRecapPeriod.yearly: _recap(
+            ListeningRecapPeriod.yearly,
+            artist: 'Asake feat. Wizkid',
+          ),
+        },
+      ),
+    );
+    await tester.pump();
+
+    final portraits = tester.widgetList<DiscoveryArtwork>(
+      find.byType(DiscoveryArtwork),
+    );
+    expect(
+      portraits.map((portrait) => portrait.artist),
+      ['M83', 'Tyler, the Creator', 'Asake'],
+    );
+    expect(find.text('M83'), findsWidgets);
+    expect(find.text('Tyler, the Creator'), findsOneWidget);
+    expect(find.text('Asake'), findsOneWidget);
+    expect(find.text('M83, ZHU'), findsNothing);
+    expect(find.text('Tyler, the Creator & Kali Uchis'), findsNothing);
+    expect(find.text('Asake feat. Wizkid'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the gear, chips and rows open Settings where they belong', (
