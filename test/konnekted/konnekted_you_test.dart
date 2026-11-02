@@ -1,4 +1,5 @@
 import 'package:flick/core/theme/lokal_theme.dart';
+import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/widgets/common/overflow_marquee_title.dart';
 import 'package:flick/data/repositories/recently_played_repository.dart';
@@ -278,6 +279,30 @@ void main() {
     await tester.tap(find.text('Month'));
     await tester.pump();
     expect(find.text('160'), findsOneWidget);
+  });
+
+  testWidgets('animations-off setting does not delay You stats', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    AppConstants.setAnimationsEnabled(false);
+    addTearDown(() => AppConstants.setAnimationsEnabled(true));
+    _tall(tester);
+    await tester.pumpWidget(
+      _app(
+        onNavigate: (_) {},
+        disableAnimations: false,
+        recaps: {
+          ListeningRecapPeriod.weekly: _recap(
+            ListeningRecapPeriod.weekly, plays: 12,
+          ),
+        },
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(DiscoveryArtwork), findsOneWidget);
+    expect(find.text('48 min'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('cold entry paints a responsive You skeleton before recaps', (
