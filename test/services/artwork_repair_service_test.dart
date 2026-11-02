@@ -48,6 +48,36 @@ void main() {
     ]), isNull);
   });
 
+  test('SAF and MediaStore library tracks are eligible for cover repair', () {
+    final local = song().copyWith(filePath: '/storage/emulated/0/Music/one.flac');
+    final mediaStore = song().copyWith(
+      filePath: 'content://media/external/audio/media/123',
+    );
+    final document = song().copyWith(
+      filePath: 'content://com.android.externalstorage.documents/tree/Music',
+    );
+    final remote = song().copyWith(
+      filePath: 'webdav://11/Music/one.flac',
+      sourceType: 'webdav',
+    );
+    expect(isRepairableLocalSource(local), isTrue);
+    expect(isRepairableLocalSource(mediaStore), isTrue);
+    expect(isRepairableLocalSource(document), isTrue);
+    expect(isRepairableLocalSource(remote), isFalse);
+  });
+
+  test('automatic artwork is not treated as a manual selection', () {
+    final importer = AlbumArtImportService.instance;
+    expect(
+      importer.isCustomArtworkPath('/data/album_art_overrides/handpicked.cover'),
+      isTrue,
+    );
+    expect(
+      importer.isCustomArtworkPath('/support/album_art_repairs/upgraded.cover'),
+      isFalse,
+    );
+  });
+
   test('missing or placeholder album identities are not eligible', () {
     expect(canRepairAlbum(song(album: 'Unknown Album')), isFalse);
     expect(canRepairAlbum(song(album: '')), isFalse);
