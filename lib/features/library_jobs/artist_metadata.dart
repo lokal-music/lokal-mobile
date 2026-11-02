@@ -31,7 +31,29 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
   bool _working = false;
   static String key(String name) => name.trim().toLowerCase();
   @override
-  Map<String, String> build() => const {};
+  Map<String, String> build() {
+    // Artist records survive app restart; a provider map does not. Followed
+    // Spotify artists have no local tracks to re-seed the normal warmup queue.
+    unawaited(_restoreSavedPortraits());
+    return const {};
+  }
+
+  Future<void> _restoreSavedPortraits() async {
+    if (!Database.isInitialized) return;
+    try {
+      final artists = await Database.artists.where().findAll();
+      if (!ref.mounted) return;
+      state = {
+        for (final artist in artists)
+          if (artist.artPath?.isNotEmpty == true)
+            key(artist.name): artist.artPath!,
+        // Current-session refreshes win over the older database snapshot.
+        ...state,
+      };
+    } catch (_) {
+      // Missing metadata must not prevent artist lists from rendering.
+    }
+  }
 
   void warm(List<Song> songs) {
     _pendingWarmup = songs;
