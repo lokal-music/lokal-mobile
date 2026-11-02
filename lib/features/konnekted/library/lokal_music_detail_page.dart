@@ -31,6 +31,7 @@ import 'package:flick/providers/favorites_provider.dart';
 import 'package:flick/providers/player_provider.dart';
 import 'package:flick/providers/app_preferences_provider.dart';
 import 'package:flick/services/apple_music/apple_artist_visuals_service.dart';
+import 'package:flick/services/apple_music/apple_artist_logo_cache.dart';
 import 'package:flick/providers/songs_provider.dart';
 import 'package:flick/widgets/common/cached_image_widget.dart';
 import 'package:flick/widgets/lokal/lokal_glass.dart';
@@ -757,6 +758,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
       child: artistArtwork,
     );
     final heroHeight = LokalDetailHeader.artistHeight(context);
+    final diskLogo = widget.isArtist
+        ? AppleArtistLogoCache.instance.cachedFor(widget.artist)
+        : null;
     final performanceMode = ref.watch(
       lokalAppearanceProvider.select((appearance) =>
           appearance.performanceMode || appearance.ultraPerformanceMode),
@@ -802,8 +806,10 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               controlsInOverlay: true,
               background: pageColor,
               artworkHeroTag: widget.artworkHeroTag,
-              artistLogoUrl: widget.isArtist ? _artistVisuals?.logoUrl : null,
-              artistLogoAspect: _artistVisuals?.logoAspect ?? 1,
+              artistLogoPath: widget.isArtist
+                  ? (_artistVisuals?.logoLocalPath ?? diskLogo?.path)
+                  : null,
+              artistLogoAspect: diskLogo?.aspect ?? _artistVisuals?.logoAspect ?? 1,
               metadata: widget.isArtist
                   ? (local.isEmpty ? null : lokalSongCount(local.length))
                   : [
