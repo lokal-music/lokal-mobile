@@ -65,7 +65,6 @@ class AlbumArtService {
     // downloaded image in durable support storage, so offline cards can
     // restore it after a force-close without contacting the paired PC again.
     if (uri.scheme == 'lokal') {
-      final prefix = 'lokal-cover://';
       final desktopId = markerForDesktopArtwork(sourcePath, marker);
       if (desktopId == null) return null;
       return 'lokal://${uri.host}/cover/${Uri.encodeComponent(desktopId)}';
