@@ -818,7 +818,7 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
               background: pageColor,
               artworkHeroTag: widget.artworkHeroTag,
               artistLogoPath: widget.isArtist
-                  ? (_artistVisuals?.logoLocalPath ?? diskLogo?.path)
+                  ? (diskLogo?.path ?? _artistVisuals?.logoLocalPath)
                   : null,
               artistLogoAspect: diskLogo?.aspect ?? _artistVisuals?.logoAspect ?? 1,
               metadata: widget.isArtist
