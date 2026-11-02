@@ -127,7 +127,10 @@ class ArtworkRepairService {
     if (_ownsClient) _client.close();
   }
 
-  Future<int?> _existingShortSide(Song song) async {
+  Future<int?> _existingShortSide(
+    Song song, {
+    Map<String, int?>? measured,
+  }) async {
     var path = song.albumArt;
     if (path == null || path.isEmpty || !await File(path).exists()) {
       // A scanned content:// recording often has no filesystem art pointer
@@ -147,11 +150,16 @@ class ArtworkRepairService {
       }
       if (path == null) return 0;
     }
+    // Multiple songs in an album often point to the same cover. Avoid
+    // decoding the same 3000px image dozens of times during one manual scan.
+    // Rechecks before committing bypass this cache to detect concurrent edits.
+    if (measured != null && measured.containsKey(path)) return measured[path];
     final file = File(path);
     if (!await file.exists()) return 0;
     final length = await file.length();
     if (length <= 0 || length > 5 * 1024 * 1024) return null;
     final validated = await validateArtworkBytes(await file.readAsBytes());
+    measured?[path] = validated?.shortSide;
     return validated?.shortSide;
   }
 
@@ -203,13 +211,14 @@ class ArtworkRepairService {
       }
       total = eligible.values.fold<int>(0, (sum, tracks) => sum + tracks.length);
       report();
+      final measured = <String, int?>{};
       for (final group in eligible.values) {
         if (_cancel) break;
         final low = <(Song, int)>[];
         for (final song in group) {
           if (_cancel) break;
           try {
-            final side = await _existingShortSide(song);
+            final side = await _existingShortSide(song, measured: measured);
             if (side != null && side < 640) {
               low.add((song, side));
             } else {
