@@ -5,6 +5,8 @@ import 'artist_metadata.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flick/features/music_videos/music_video_providers.dart';
 import 'package:flick/features/konnekted/library/lokal_library_groups.dart';
+import 'package:flick/features/konnekted/library/artist_follow_store.dart';
+import 'package:flick/features/discovery/recommendation_match.dart';
 import 'package:flick/features/konnekted/library/lokal_online_catalogue.dart';
 import 'package:flick/services/apple_music/apple_music_metadata_service.dart';
 import 'package:flick/models/song.dart';
@@ -92,7 +94,17 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
       }
       return;
     }
-    final artists = lokalArtists(songs);
+    final artistNames = [
+      for (final artist in lokalArtists(songs)) artist.name,
+    ];
+    // The Artists list also contains imported/followed artists that do not
+    // have a track in the local library. Refresh their visible portraits too.
+    if (job == LibraryJob.artists) {
+      final seen = artistNames.map(recommendationKey).toSet();
+      for (final name in ArtistFollowStore.instance.knownNames) {
+        if (seen.add(recommendationKey(name))) artistNames.add(name);
+      }
+    }
     _cancel = false;
     var done = 0, failed = 0, updated = 0;
     void publish(bool running) {
@@ -101,7 +113,7 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
           job: job,
           running: running,
           done: done,
-          total: artists.length,
+          total: artistNames.length,
           failed: failed,
           updated: updated,
           cancelled: _cancel,
@@ -111,29 +123,29 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
 
     publish(true);
     try {
-      for (final artist in artists) {
+      for (final artistName in artistNames) {
         if (_cancel || !ref.mounted) break;
         try {
           final api = AppleMusicMetadataService.instance;
           if (job == LibraryJob.releases) {
             final releases = await api.searchAlbums(
-              artist.name,
+              artistName,
               limit: 100,
               refresh: true,
             );
             if (releases.isEmpty) failed++;
           } else {
-            final info = await api.getArtistData(artist.name, refresh: true);
+            final info = await api.getArtistData(artistName, refresh: true);
             if (info == null ||
                 !await ref
                     .read(artistMetadataProvider.notifier)
-                    .storeRefreshedPortrait(artist.name, info.info?.imageUrl)) {
+                    .storeRefreshedPortrait(artistName, info.info?.imageUrl)) {
               failed++;
             } else {
               updated++;
             }
           }
-          LokalOnlineCatalogue.instance.invalidateArtist(artist.name);
+          LokalOnlineCatalogue.instance.invalidateArtist(artistName);
         } catch (_) {
           failed++;
         }
