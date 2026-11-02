@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:flick/services/player_service.dart';
+import 'package:flick/services/motion_art/motion_art_memory_pressure.dart';
 
 /// A silent editorial HLS clip above an always-available static portrait.
 ///
@@ -30,10 +31,16 @@ class LokalArtistMotionBackdrop extends StatelessWidget {
       if (!enabled || suppressed || MediaQuery.disableAnimationsOf(context)) {
         return fallback;
       }
-      return _ArtistVideoLayer(
-        url: url,
-        fallback: fallback,
-        playbackActive: playbackActive,
+      return ValueListenableBuilder<bool>(
+        valueListenable: MotionArtMemoryPressure.instance.suspended,
+        builder: (context, suspendedForMemory, _) {
+          if (suspendedForMemory) return fallback;
+          return _ArtistVideoLayer(
+            url: url,
+            fallback: fallback,
+            playbackActive: playbackActive,
+          );
+        },
       );
     },
   );
@@ -57,6 +64,7 @@ class _ArtistVideoLayerState extends State<_ArtistVideoLayer>
     with WidgetsBindingObserver {
   VideoPlayerController? _controller;
   bool _ready = false;
+  bool _visible = false;
   bool _foreground = true;
 
   @override
@@ -73,6 +81,7 @@ class _ArtistVideoLayerState extends State<_ArtistVideoLayer>
       final previous = _controller;
       _controller = null;
       _ready = false;
+      _visible = false;
       if (previous != null) unawaited(previous.dispose());
       unawaited(_load());
     } else if (oldWidget.playbackActive != widget.playbackActive) {
@@ -96,8 +105,15 @@ class _ArtistVideoLayerState extends State<_ArtistVideoLayer>
       if (!mounted || !identical(_controller, controller)) return;
       setState(() => _ready = true);
       await _syncPlayback();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(_controller, controller)) {
+          setState(() => _visible = true);
+        }
+      });
     } catch (_) {
       // A missing or unsupported Apple rendition must never hide the photo.
+      if (identical(_controller, controller)) _controller = null;
+      unawaited(controller.dispose());
     }
   }
 
@@ -145,7 +161,7 @@ class _ArtistVideoLayerState extends State<_ArtistVideoLayer>
         if (hasFrame)
           AnimatedOpacity(
             duration: const Duration(milliseconds: 280),
-            opacity: 1,
+            opacity: _visible ? 1 : 0,
             child: ClipRect(
               child: FittedBox(
                 fit: BoxFit.cover,
