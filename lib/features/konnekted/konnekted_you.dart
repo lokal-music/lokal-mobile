@@ -15,6 +15,7 @@ import 'package:flick/providers/lokal_remote_provider.dart';
 import 'package:flick/widgets/common/overflow_marquee_title.dart';
 import 'package:flick/core/theme/lokal_theme.dart';
 import 'package:flick/core/navigation/lokal_navigation_switcher.dart';
+import 'package:flick/core/constants/app_constants.dart';
 import 'package:flick/core/theme/lokal_tokens.dart';
 import 'package:flick/data/repositories/recently_played_repository.dart';
 import 'package:flick/features/konnekted/konnekted_discovery.dart';
@@ -196,7 +197,8 @@ class _KonnektedYouState extends ConsumerState<KonnektedYou> {
       _entryTimer = null;
     } else if (!_richContentReady &&
         _entryTimer == null &&
-        !MediaQuery.disableAnimationsOf(context)) {
+        !MediaQuery.disableAnimationsOf(context) &&
+        AppConstants.animationNormal != Duration.zero) {
       _entryTimer = Timer(
         LokalNavigationSwitcher.enterDuration +
             const Duration(milliseconds: 64),
@@ -261,8 +263,9 @@ class _KonnektedYouState extends ConsumerState<KonnektedYou> {
     // Keep the first navigation frame light. Reduced-motion users receive
     // the entire page immediately; only the data subscription is deferred
     // for the animated entry, not the profile header or its actions.
-    final showRichContent =
-        _richContentReady || MediaQuery.disableAnimationsOf(context);
+    final showRichContent = _richContentReady ||
+        MediaQuery.disableAnimationsOf(context) ||
+        AppConstants.animationNormal == Duration.zero;
     final recaps = showRichContent
         ? (ref.watch(youRecapsProvider).value ??
             const <ListeningRecapPeriod, ListeningRecap>{})
