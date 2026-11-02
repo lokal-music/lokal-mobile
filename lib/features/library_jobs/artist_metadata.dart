@@ -206,7 +206,10 @@ class ArtistMetadata extends Notifier<Map<String, String>> {
       persisted = true;
     });
     if (!persisted) return false;
-    if (ref.mounted && (force || _isCurrent(artistKey, generation))) {
+    if (ref.mounted &&
+        (force
+            ? (_forcedGeneration[artistKey] ?? 0) == generation
+            : _isCurrent(artistKey, generation))) {
       state = {...state, artistKey: cachedPath};
     }
     return true;
