@@ -705,20 +705,15 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
         // Decoding at the *actual rendered size* stays stable across route
         // completion. Switching cacheWidth at ~320ms caused a second decode
         // and visible image flash on album/artist pages.
-        placeholder: widget.isArtist && localCover?.isNotEmpty == true
-            ? CachedImageWidget(
-                imagePath: localCover,
-                audioSourcePath: localArtworkSong?.filePath,
-                fit: BoxFit.cover,
-                revealOnLoad: true,
-                placeholder: ColoredBox(color: pageColor),
-              )
-            : ColoredBox(color: pageColor),
+        // Never display a track/featured-album cover under an artist's
+        // portrait. A slow remote portrait must resolve against the theme,
+        // not briefly masquerade as the artist's editorial image.
+        placeholder: ColoredBox(color: pageColor),
         errorWidget: ColoredBox(color: pageColor),
       );
-    } else if (local.isNotEmpty) {
-      // The artist's first known cover is preferable to a black/empty hero
-      // while an Isar portrait query or remote artist image is resolving.
+    } else if (!widget.isArtist && local.isNotEmpty) {
+      // Album pages may use an owned recording's cover as their fallback.
+      // Artist pages may not: album art is not an artist portrait.
       heroArtwork = CachedImageWidget(
         imagePath: localCover,
         audioSourcePath: localArtworkSong?.filePath ?? local.first.filePath,
@@ -751,7 +746,11 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                 _heroInView && (ModalRoute.of(context)?.isCurrent ?? true),
           );
     final stagedArtwork = LokalArtworkReveal(
-      identity: '${widget.isArtist ? 'artist' : 'album'}:${heroImage ?? localCover ?? ''}',
+      // Artist identity must never be derived from local album artwork:
+      // the first frame is the neutral hero until actual portrait arrives.
+      identity: widget.isArtist
+          ? 'artist:${recommendationKey(widget.artist)}:${heroImage ?? ''}'
+          : 'album:${heroImage ?? localCover ?? ''}',
       // A full-bleed BoxFit.cover already fits square/non-square portraits
       // without adding bars. Re-decoding each file for automatic cropping
       // was redundant for verified editorial images and could cause jank.
@@ -813,7 +812,9 @@ class _LokalMusicDetailPageState extends ConsumerState<LokalMusicDetailPage> {
                       if (runningTime != null) runningTime,
                     ].join('  ·  '),
               onArtworkTap: () {
-                final image = heroImage?.isNotEmpty == true ? heroImage : localCover;
+                final image = heroImage?.isNotEmpty == true
+                    ? heroImage
+                    : widget.isArtist ? null : localCover;
                 if (image == null || image.isEmpty) return;
                 showDialog<void>(
                   context: context,
