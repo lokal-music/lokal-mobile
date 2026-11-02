@@ -8,6 +8,7 @@ import '../../core/utils/audio_metadata_utils.dart';
 import '../../core/utils/artist_credits.dart';
 import '../../core/utils/string_sort_utils.dart';
 import '../database.dart';
+import '../entities/link_event_entities.dart';
 import '../../models/song.dart';
 import 'song_repository.dart';
 
@@ -238,6 +239,43 @@ Map<ListeningRecapPeriod, ListeningRecap> _computeListeningRecaps(
       ],
       unknownArtist: request.unknownArtist,
       unknownAlbum: request.unknownAlbum,
+    );
+  }
+  return result;
+}
+
+/// Parse remote-history envelopes away from Flutter's animation isolate.
+List<RecentlyPlayedEntry> _decodeUnprojectedHistory(
+  List<PlayEventEntity> events,
+  Set<String> projectedEventIds,
+) {
+  final result = <RecentlyPlayedEntry>[];
+  for (final event in events) {
+    if (projectedEventIds.contains(event.eventId)) continue;
+    Map<String, dynamic> track;
+    try {
+      track = Map<String, dynamic>.from(jsonDecode(event.trackJson) as Map);
+    } catch (_) {
+      track = {};
+    }
+    final length = track['duration'];
+    final durationMs = length is num && length.isFinite && length > 0
+        ? (length * 1000).round()
+        : event.msPlayed;
+    result.add(
+      RecentlyPlayedEntry(
+        song: Song(
+          id: 'history:${event.trackKey}',
+          title: (track['title'] as String?) ?? 'Unknown track',
+          artist: (track['artist'] as String?) ?? 'Unknown artist',
+          album: track['album'] as String?,
+          duration: Duration(milliseconds: durationMs),
+          fileType: 'history',
+          isExternal: true,
+        ),
+        playedAt: DateTime.fromMillisecondsSinceEpoch(event.playedAt),
+        listenedMs: event.msPlayed,
+      ),
     );
   }
   return result;
@@ -703,34 +741,14 @@ class RecentlyPlayedRepository {
           includeUpper: false,
         )
         .findAll();
-    for (final event in events) {
-      if (displayedEventIds.contains(event.eventId)) continue;
-      Map<String, dynamic> track;
-      try {
-        track = Map<String, dynamic>.from(jsonDecode(event.trackJson) as Map);
-      } catch (_) {
-        track = {};
-      }
-      final length = track['duration'];
-      final durationMs = length is num && length.isFinite && length > 0
-          ? (length * 1000).round()
-          : event.msPlayed;
-      result.add(
-        RecentlyPlayedEntry(
-          song: Song(
-            id: 'history:${event.trackKey}',
-            title: (track['title'] as String?) ?? 'Unknown track',
-            artist: (track['artist'] as String?) ?? 'Unknown artist',
-            album: track['album'] as String?,
-            duration: Duration(milliseconds: durationMs),
-            fileType: 'history',
-            isExternal: true,
-          ),
-          playedAt: DateTime.fromMillisecondsSinceEpoch(event.playedAt),
-          listenedMs: event.msPlayed,
-        ),
-      );
-    }
+    // JSON parsing for thousands of desktop/phone sync events must not
+    // interrupt the tab animation or the first recap paint.
+    final unmatched = events.length >= 96
+        ? await Isolate.run(
+            () => _decodeUnprojectedHistory(events, displayedEventIds),
+          )
+        : _decodeUnprojectedHistory(events, displayedEventIds);
+    result.addAll(unmatched);
     return result;
   }
 
