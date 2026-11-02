@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('fixed hero keeps image sharp and only feathers its bottom edge',
+  testWidgets('full-resolution hero is sharp with no image-local blur strip',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -29,39 +29,45 @@ void main() {
 
     expect(tester.getSize(find.byKey(const ValueKey('fixed-artwork'))),
         const Size(390, 440));
-    final masks = tester.widgetList<ShaderMask>(
-      find.descendant(
-        of: find.byType(LokalDetailFixedBackdrop),
-        matching: find.byType(ShaderMask),
+    final inside = find.descendant(
+      of: find.byType(LokalDetailFixedBackdrop),
+      matching: find.byType(ShaderMask),
+    );
+    expect(inside, findsNothing);
+    expect(find.descendant(
+      of: find.byType(LokalDetailFixedBackdrop),
+      matching: find.byType(BackdropFilter),
+    ), findsNothing);
+    expect(find.descendant(
+      of: find.byType(LokalDetailFixedBackdrop),
+      matching: find.byType(ImageFiltered),
+    ), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('hero-to-page wash is UI chrome, never an image filter',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 440,
+            child: LokalDetailHeroWash(background: Colors.black),
+          ),
+        ),
       ),
     );
-    expect(masks.length, 1);
-    expect(masks.single.blendMode, BlendMode.dstIn);
-    expect(
-      find.descendant(
-        of: find.byType(LokalDetailFixedBackdrop),
-        matching: find.byType(BackdropFilter),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: find.byType(LokalDetailFixedBackdrop),
-        matching: find.byType(ImageFiltered),
-      ),
-      findsNothing,
-    );
-    final feather = LokalDetailFixedBackdrop.edgeFeather;
-    expect(feather.stops, [0, .92, 1]);
-    expect(feather.colors, [Colors.white, Colors.white, Colors.transparent]);
-    // There should be no darkening/shadow/tint overlay over the artwork.
-    expect(
-      find.descendant(
-        of: find.byType(LokalDetailFixedBackdrop),
-        matching: find.byType(DecoratedBox),
-      ),
-      findsNothing,
-    );
+    final wash = find.byType(LokalDetailHeroWash);
+    expect(wash, findsOneWidget);
+    final decoration = tester.widget<DecoratedBox>(
+      find.descendant(of: wash, matching: find.byType(DecoratedBox)),
+    ).decoration as BoxDecoration;
+    final gradient = decoration.gradient as LinearGradient;
+    expect(gradient.stops, LokalDetailHeroWash.stops);
+    expect(gradient.colors.first.alpha, 0);
+    expect(gradient.colors.last, Colors.black);
+    expect(find.descendant(of: wash, matching: find.byType(BackdropFilter)),
+        findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
