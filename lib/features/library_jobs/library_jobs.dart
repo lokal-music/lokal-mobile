@@ -72,7 +72,10 @@ class LibraryJobs extends Notifier<LibraryJobStatus> {
   ArtworkRepairService? _activeRepair;
   @override
   LibraryJobStatus build() {
-    ref.onDispose(() => _cancel = true);
+    ref.onDispose(() {
+      _cancel = true;
+      _activeRepair?.cancel();
+    });
     ref.listen(musicVideoIndexProvider, (previous, next) {
       if (next.scanning || previous?.scanning == true) {
         state = LibraryJobStatus(
