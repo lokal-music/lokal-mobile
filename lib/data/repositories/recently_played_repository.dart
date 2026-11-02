@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:isar_community/isar.dart';
 
@@ -202,6 +203,44 @@ class RecentlyPlayedEntry {
     required this.playedAt,
     this.listenedMs,
   });
+}
+
+/// Pure recap work only. Send already materialized, immutable listening
+/// entries to a worker isolate; never pass Isar handles or Flutter contexts.
+class _RecapComputeRequest {
+  const _RecapComputeRequest({
+    required this.entries,
+    required this.ranges,
+    required this.unknownArtist,
+    required this.unknownAlbum,
+  });
+
+  final List<RecentlyPlayedEntry> entries;
+  final Map<ListeningRecapPeriod, ListeningRecapRange> ranges;
+  final String unknownArtist;
+  final String unknownAlbum;
+}
+
+Map<ListeningRecapPeriod, ListeningRecap> _computeListeningRecaps(
+  _RecapComputeRequest request,
+) {
+  final result = <ListeningRecapPeriod, ListeningRecap>{};
+  for (final entry in request.ranges.entries) {
+    final range = entry.value;
+    result[entry.key] = RecentlyPlayedRepository._buildListeningRecap(
+      period: entry.key,
+      range: range,
+      entries: [
+        for (final played in request.entries)
+          if (!played.playedAt.isBefore(range.start) &&
+              played.playedAt.isBefore(range.endExclusive))
+            played,
+      ],
+      unknownArtist: request.unknownArtist,
+      unknownAlbum: request.unknownAlbum,
+    );
+  }
+  return result;
 }
 
 /// Repository for recently played history operations.
@@ -428,17 +467,19 @@ class RecentlyPlayedRepository {
       endExclusive: latestEndExclusive,
     );
 
-    return {
-      for (final period in resolvedPeriods)
-        period: _buildListeningRecap(
-          period: period,
-          range: ranges[period]!,
-          entries: mappedEntries.where((entry) {
-            return !entry.playedAt.isBefore(ranges[period]!.start) &&
-                entry.playedAt.isBefore(ranges[period]!.endExclusive);
-          }).toList(),
-        ),
-    };
+    final request = _RecapComputeRequest(
+      entries: mappedEntries,
+      ranges: ranges,
+      unknownArtist: l10n.unknownArtist,
+      unknownAlbum: l10n.unknownAlbum,
+    );
+    // Large libraries can have tens of thousands of events in a yearly
+    // recap. Aggregating all three periods on the UI isolate stalls an
+    // entering tab even though the Isar query itself is asynchronous.
+    if (mappedEntries.length >= 96) {
+      return Isolate.run(() => _computeListeningRecaps(request));
+    }
+    return _computeListeningRecaps(request);
   }
 
   /// Build a Wrapped-style recap for a single period.
@@ -629,8 +670,14 @@ class RecentlyPlayedRepository {
     final result = <RecentlyPlayedEntry>[];
     final displayedEventIds = <String>{};
     if (entries.isNotEmpty) {
-      final allSongEntities = await _songRepository.getAllSongEntities();
-      final songMap = {for (final entity in allSongEntities) entity.id: entity};
+      // A recap must not load every song in a 20k-track phone library just
+      // to resolve the subset actually present in this period's play log.
+      final songIds = entries.map((entry) => entry.songId).toSet().toList();
+      final referencedSongs = await _isar.songEntitys.getAll(songIds);
+      final songMap = {
+        for (final entity in referencedSongs)
+          if (entity != null) entity.id: entity,
+      };
       for (final entry in entries) {
         final songEntity = songMap[entry.songId];
         if (songEntity == null) continue;
@@ -687,10 +734,12 @@ class RecentlyPlayedRepository {
     return result;
   }
 
-  ListeningRecap _buildListeningRecap({
+  static ListeningRecap _buildListeningRecap({
     required ListeningRecapPeriod period,
     required ListeningRecapRange range,
     required List<RecentlyPlayedEntry> entries,
+    required String unknownArtist,
+    required String unknownAlbum,
   }) {
     if (entries.isEmpty) {
       return ListeningRecap.empty(period, range);
@@ -731,7 +780,7 @@ class RecentlyPlayedRepository {
               song.albumArtist ?? '',
               () => primaryArtistCredit(song.albumArtist),
             );
-      final resolvedArtist = artistKey.isNotEmpty ? artistKey : l10n.unknownArtist;
+      final resolvedArtist = artistKey.isNotEmpty ? artistKey : unknownArtist;
       final artistAccumulator = artistStats.putIfAbsent(
         resolvedArtist,
         () => _ArtistRecapAccumulator(resolvedArtist),
@@ -740,7 +789,7 @@ class RecentlyPlayedRepository {
 
       final albumName = (song.album?.trim().isNotEmpty ?? false)
           ? song.album!.trim()
-          : l10n.unknownAlbum;
+          : unknownAlbum;
       final albumArtist = (song.albumArtist?.trim().isNotEmpty ?? false)
           ? song.albumArtist!.trim()
           : resolvedArtist;
@@ -792,7 +841,7 @@ class RecentlyPlayedRepository {
     );
   }
 
-  int? _findPeakHour(Map<int, int> hourStats) {
+  static int? _findPeakHour(Map<int, int> hourStats) {
     if (hourStats.isEmpty) return null;
 
     final rankedHours = hourStats.entries.toList()
@@ -804,7 +853,7 @@ class RecentlyPlayedRepository {
     return rankedHours.first.key;
   }
 
-  int _compareRankedSongs(RankedRecapSong left, RankedRecapSong right) {
+  static int _compareRankedSongs(RankedRecapSong left, RankedRecapSong right) {
     final playCompare = right.plays.compareTo(left.plays);
     if (playCompare != 0) return playCompare;
 
@@ -819,7 +868,7 @@ class RecentlyPlayedRepository {
     return compareCaseInsensitive(left.song.title, right.song.title);
   }
 
-  int _compareRankedArtists(RankedRecapArtist left, RankedRecapArtist right) {
+  static int _compareRankedArtists(RankedRecapArtist left, RankedRecapArtist right) {
     final playCompare = right.plays.compareTo(left.plays);
     if (playCompare != 0) return playCompare;
 
@@ -834,7 +883,7 @@ class RecentlyPlayedRepository {
     return compareCaseInsensitive(left.artist, right.artist);
   }
 
-  int _compareRankedAlbums(RankedRecapAlbum left, RankedRecapAlbum right) {
+  static int _compareRankedAlbums(RankedRecapAlbum left, RankedRecapAlbum right) {
     final playCompare = right.plays.compareTo(left.plays);
     if (playCompare != 0) return playCompare;
 
