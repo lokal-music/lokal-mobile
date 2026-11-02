@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../data/repositories/song_repository.dart';
 import '../models/song.dart';
+import '../core/utils/artist_credits.dart' show splitArtistCredits;
 import 'album_art_import_service.dart';
 import 'album_art_service.dart';
 import 'artwork_pixel_validation.dart';
@@ -36,6 +37,14 @@ class ArtworkRepairProgress {
 String repairIdentity(String value) =>
     value.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
 
+/// Use the album's lead credit instead of searching a combined feature list.
+String repairLeadArtist(Song song) {
+  final raw = song.albumArtist?.trim().isNotEmpty == true
+      ? song.albumArtist!
+      : song.artist;
+  return splitArtistCredits(raw).firstOrNull ?? raw;
+}
+
 /// MediaStore/SAF audio is represented by a content URI, not an absolute
 /// filesystem path. Those tracks must be eligible for cover repair as well.
 bool isRepairableLocalSource(Song song) {
@@ -47,7 +56,7 @@ bool isRepairableLocalSource(Song song) {
 
 bool canRepairAlbum(Song song) {
   final album = repairIdentity(song.album ?? '');
-  final artist = repairIdentity(song.albumArtist ?? song.artist);
+  final artist = repairIdentity(repairLeadArtist(song));
   return album.isNotEmpty &&
       artist.isNotEmpty &&
       !const {'unknown album', 'unknown', 'untitled', 'n/a', 'various artists'}
@@ -62,20 +71,32 @@ AlbumArtCandidate? exactRepairCandidate(
   List<AlbumArtCandidate> candidates,
 ) {
   final album = repairIdentity(song.album ?? '');
-  final artist = repairIdentity(song.albumArtist ?? song.artist);
+  final artist = repairIdentity(repairLeadArtist(song));
   if (!canRepairAlbum(song)) return null;
   final exact = candidates.where((candidate) =>
       repairIdentity(candidate.title) == album &&
-      repairIdentity(candidate.artist) == artist).toList();
-  for (final source in ['iTunes', 'Deezer', 'Cover Art Archive']) {
-    final matches = exact.where((candidate) => candidate.sourceLabel == source).toList();
+      repairIdentity(splitArtistCredits(candidate.artist).firstOrNull ??
+          candidate.artist) == artist).toList();
+  AlbumArtCandidate? unique(List<AlbumArtCandidate> matches) {
     final urls = matches.map((candidate) => candidate.imageUrl).toSet();
     if (urls.length == 1) return matches.first;
-    if (urls.length > 1) return null; // Multiple editions: do not guess.
+    if (urls.length < 2) return null;
+    // The same album can have multiple editions in iTunes/MusicBrainz. Only
+    // disambiguate when the locally tagged release year agrees with exactly
+    // one candidate; otherwise leave the existing cover unchanged.
+    final year = song.year;
+    if (year == null || year <= 0) return null;
+    final dated = matches.where((item) =>
+        item.releaseDate?.startsWith('$year') == true).toList();
+    return dated.map((item) => item.imageUrl).toSet().length == 1 &&
+            dated.isNotEmpty ? dated.first : null;
   }
-  // Other providers are used only if the image is unambiguous.
-  final urls = exact.map((candidate) => candidate.imageUrl).toSet();
-  return urls.length == 1 ? exact.first : null;
+  for (final source in ['iTunes', 'Deezer', 'Cover Art Archive']) {
+    final matches = exact.where((candidate) => candidate.sourceLabel == source).toList();
+    if (matches.isNotEmpty) return unique(matches);
+  }
+  // Other providers are used only when the edition is unambiguous.
+  return unique(exact);
 }
 
 bool isCoverUpgrade({required int currentShortSide, required int newShortSide}) {
@@ -177,7 +198,7 @@ class ArtworkRepairService {
             _importer.isCustomArtworkPath(song.albumArt) ||
             !canRepairAlbum(song)) continue;
         final key = '${repairIdentity(song.album!)}|'
-            '${repairIdentity(song.albumArtist ?? song.artist)}';
+            '${repairIdentity(repairLeadArtist(song))}';
         eligible.putIfAbsent(key, () => []).add(song);
       }
       total = eligible.values.fold<int>(0, (sum, tracks) => sum + tracks.length);
