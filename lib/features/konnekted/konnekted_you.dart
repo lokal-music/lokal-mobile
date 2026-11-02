@@ -44,12 +44,22 @@ final youRecapsProvider =
     StreamProvider<Map<ListeningRecapPeriod, ListeningRecap>>((ref) {
       final repository = ref.watch(konnektedHistoryRepositoryProvider);
       final changes = StreamController<void>();
+      Timer? queuedReload;
+      // A single local play can update both the recent-history table and
+      // the linked journal. Batch near-simultaneous notifications so the
+      // year recap is not rebuilt twice on an entering screen.
       final subscription = repository.watchHistory().listen(
-        changes.add,
+        (_) {
+          queuedReload?.cancel();
+          queuedReload = Timer(const Duration(milliseconds: 160), () {
+            if (!changes.isClosed) changes.add(null);
+          });
+        },
         onError: changes.addError,
       );
       changes.add(null);
       ref.onDispose(() {
+        queuedReload?.cancel();
         unawaited(subscription.cancel());
         unawaited(changes.close());
       });
@@ -480,6 +490,12 @@ class _YouHeader extends StatelessWidget {
                                   File(avatarPath!),
                                   width: 44,
                                   height: 44,
+                                  // Never decode a multi-megapixel account
+                                  // avatar for a 44px circle on cold entry.
+                                  cacheWidth: (44 * MediaQuery.devicePixelRatioOf(context))
+                                      .ceil().clamp(44, 192),
+                                  cacheHeight: (44 * MediaQuery.devicePixelRatioOf(context))
+                                      .ceil().clamp(44, 192),
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => Text(
                                     initial,
