@@ -18,6 +18,9 @@ Song song(int id, String artist) => Song(
 class _Metadata extends ArtistMetadata {
   _Metadata({super.parseCredits});
   final refreshed = <String>[];
+  void publishPortrait(String name, String path) =>
+      state = {...state, ArtistMetadata.key(name): path};
+
   @override
   Future<void> refresh(String name, {bool force = false}) async {
     refreshed.add(name);
@@ -83,6 +86,24 @@ void main() {
       expect(parsed, ['Newest']);
     },
   );
+
+  test('artist portrait path changes update list subscribers immediately', () {
+    final worker = _Metadata();
+    final container = ProviderContainer(
+      overrides: [artistMetadataProvider.overrideWith(() => worker)],
+    );
+    addTearDown(container.dispose);
+    final observed = <String?>[];
+    final subscription = container.listen<String?>(
+      artistMetadataProvider.select((paths) => paths[ArtistMetadata.key('M83')]),
+      (previous, next) => observed.add(next),
+    );
+    addTearDown(subscription.close);
+    worker.publishPortrait('M83', '/cache/old-portrait.jpg');
+    worker.publishPortrait('M83', '/cache/new-portrait.jpg');
+    expect(observed, ['/cache/old-portrait.jpg', '/cache/new-portrait.jpg']);
+  });
+
   test('forced portrait refresh uses a new cache identity', () {
     final first = DateTime.fromMicrosecondsSinceEpoch(1700000000000000);
     final second = first.add(const Duration(microseconds: 1));
