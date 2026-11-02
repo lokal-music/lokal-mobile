@@ -21,7 +21,11 @@ const _song = Song(
   fileType: 'FLAC',
 );
 
-ListeningRecap _recap(ListeningRecapPeriod period, {int plays = 12, String artist = 'M83'}) {
+ListeningRecap _recap(
+  ListeningRecapPeriod period, {
+  int plays = 12,
+  String artist = 'M83',
+}) {
   final now = DateTime(2026, 10, 20, 21);
   final range = period.rangeFor(now);
   return ListeningRecap(
