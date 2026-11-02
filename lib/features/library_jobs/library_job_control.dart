@@ -69,6 +69,8 @@ class LibraryJobControl extends ConsumerWidget {
             Text(
               job == LibraryJob.videos
                   ? 'Search YouTube Music for official videos of your library songs.'
+                  : job == LibraryJob.releases
+                  ? 'Refresh album release data and upgrade low-resolution local album covers. Hand-picked artwork stays intact.'
                   : 'Refresh artist metadata and portraits for library and followed artists. Local tags stay unchanged.',
               style: TextStyle(color: context.lokal.muted, fontSize: 12),
             ),
