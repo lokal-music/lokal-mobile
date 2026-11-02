@@ -903,10 +903,12 @@ class AlbumArtImportService {
 
   String _searchArtistName(Song song) {
     final albumArtist = song.albumArtist?.trim();
-    if (albumArtist != null && albumArtist.isNotEmpty) {
-      return albumArtist;
-    }
-    return song.artist.trim();
+    final credit = albumArtist != null && albumArtist.isNotEmpty
+        ? albumArtist
+        : song.artist.trim();
+    // A combined album credit such as "SZA feat. Kendrick Lamar" produces
+    // fewer relevant MusicBrainz/iTunes covers than its actual lead artist.
+    return splitArtistCredits(credit).firstOrNull ?? credit;
   }
 
   bool _looksLikeImage(Uint8List bytes) {
